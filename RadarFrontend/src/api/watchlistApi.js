@@ -2,13 +2,18 @@ import api from './api';
 
 const stripSuffix = (v) => String(v || '').replace(/\.(NS|BO)$/i, '');
 
-export const fetchUserWatchlist = async () => {
+export const fetchUserWatchlist = async (mode) => {
     try {
-        const res = await api.get('/watchlist');
+        const params = mode ? { mode } : {};
+        const res = await api.get('/watchlist', { params });
         const lists = Array.isArray(res.data) ? res.data : [];
         // Return flat list of symbols from the first (default) watchlist
+        // Items are stored as objects: {symbol: "RELIANCE.NS", addedAt: ...}
         if (lists.length === 0) return [];
-        return (lists[0].items || []).map(i => stripSuffix(i.symbol));
+        return (lists[0].items || []).map(i => {
+            const sym = typeof i === 'string' ? i : (i?.symbol || i?.sym || '');
+            return stripSuffix(sym);
+        }).filter(Boolean);
     } catch (err) {
         console.warn('fetchUserWatchlist failed:', err.message);
         return [];
@@ -35,9 +40,11 @@ export const removeSymbolFromWatchlist = async (watchlistId, symbol) => {
     }
 };
 
-export const createWatchlist = async (name) => {
+export const createWatchlist = async (name, mode) => {
     try {
-        const res = await api.post('/watchlist', { name });
+        const body = { name };
+        if (mode) body.mode = mode;
+        const res = await api.post('/watchlist', body);
         return res.data;
     } catch (err) {
         console.error('createWatchlist failed:', err.message);
@@ -46,9 +53,10 @@ export const createWatchlist = async (name) => {
 };
 
 // Fetch live price + technical data for a list of symbols in one call
-export const fetchWatchlistLiveData = async () => {
+export const fetchWatchlistLiveData = async (mode) => {
     try {
-        const res = await api.get('/technical/watchlist');
+        const params = mode ? { mode } : {};
+        const res = await api.get('/technical/watchlist', { params });
         const payload = res.data?.data ?? res.data;
         return Array.isArray(payload) ? payload : [];
     } catch (err) {
@@ -56,3 +64,4 @@ export const fetchWatchlistLiveData = async () => {
         return [];
     }
 };
+

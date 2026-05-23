@@ -137,7 +137,7 @@ const ProfileDropdown = ({
           className="dropdown-menu-item"
           onClick={() => {
             onClose();
-            navigate(isTraderMode ? "/trader/profile" : "/investor/profile");
+            navigate(isTraderMode ? "/trader/dashboard/profile" : "/investor/dashboard/profile");
           }}
         >
           <span className="dropdown-menu-icon">
@@ -150,7 +150,7 @@ const ProfileDropdown = ({
           className="dropdown-menu-item"
           onClick={() => {
             onClose();
-            navigate(isTraderMode ? "/trader/settings" : "/investor/settings");
+            navigate(isTraderMode ? "/trader/dashboard/settings" : "/investor/settings");
           }}
         >
           <span className="dropdown-menu-icon">
@@ -163,7 +163,7 @@ const ProfileDropdown = ({
           className="dropdown-menu-item"
           onClick={() => {
             onClose();
-            navigate(isTraderMode ? "/trader/support" : "/investor/support");
+            navigate(isTraderMode ? "/trader/dashboard/support" : "/investor/support");
           }}
         >
           <span className="dropdown-menu-icon">

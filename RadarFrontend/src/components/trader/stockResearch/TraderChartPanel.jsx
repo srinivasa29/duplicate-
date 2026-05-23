@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { getAssetMetadata } from '../../../utils/assetClassifier';
+import { useMarketStatus } from '../../../hooks/useMarketStatus';
 import { formatPrice as formatCurrency } from '../../../utils/currency';
 import { fetchOHLCForChart } from '../../../api/ohlcApi';
 import { fetchMarketHistory } from '../../../api/marketApi';
@@ -463,7 +465,7 @@ function ResearchChartViewport({
 
     setOverlayContext({ chart, candleSeries: series, width: rootRef.current.clientWidth });
 
-    // â”€â”€ Apply Settings â”€â”€
+    // ── Apply Settings ──
     chart.applyOptions({
       grid: {
         vertLines: { visible: settings.grid, color: 'rgba(255, 255, 255, 0.02)' },
@@ -532,7 +534,7 @@ function ResearchChartViewport({
 
     const charts = [chart, rsiChart, macdChart].filter(Boolean);
 
-    // â”€â”€ Interaction Lock â”€â”€
+    // ── Interaction Lock ──
     const isDrawing = DRAW_TOOLS.includes(selectedTool);
     charts.forEach(c => {
       c.applyOptions({
@@ -671,6 +673,10 @@ function ResearchChartViewport({
 
 export default function TraderChartPanel({ symbol, price, assetType, variant = 'simple' }) {
   const advanced = variant === 'advanced';
+  const assetMeta = getAssetMetadata(symbol);
+  
+  const { isOpen: mktOpen, isCrypto } = useMarketStatus(assetMeta.type);
+
   const navigate = useNavigate();
 
   const [timeframe, setTimeframe] = useState('10m');
@@ -742,9 +748,26 @@ export default function TraderChartPanel({ symbol, price, assetType, variant = '
       let mainRes = [];
       let compRes = [];
       try {
+        // ── Derive correct API symbol based on asset type ──────────────────
+        const INDEX_MAP = {
+          NIFTY: '^NSEI', BANKNIFTY: '^NSEBANK', SENSEX: '^BSESN',
+          FINNIFTY: 'NIFTY_FIN_SERVICE.NS', MIDCPNIFTY: '^NSEMDCP50', INDIAVIX: '^INDIAVIX',
+        };
+        const upperSym = String(symbol || '').toUpperCase();
+        let apiSymbol = upperSym;
+        if (assetMeta.type === 'Index') {
+          apiSymbol = INDEX_MAP[upperSym] || `^${upperSym}`;
+        } else if (assetMeta.type === 'Crypto') {
+          apiSymbol = upperSym.endsWith('USDT') ? upperSym : `${upperSym}USDT`;
+        } else if (assetMeta.type === 'Equity' && !upperSym.endsWith('.NS') && !upperSym.endsWith('.BO')) {
+          apiSymbol = `${upperSym}.NS`;
+        } else if (assetMeta.type === 'Forex') {
+          apiSymbol = `${upperSym}=X`;
+        }
+        // ──────────────────────────────────────────────────────────────────
         const [main, comp] = await Promise.all([
-          fetchMarketHistory(symbol, assetType, timeframe),
-          compareEnabled ? fetchMarketHistory(compareSymbol || 'NIFTY', 'STOCK', timeframe) : Promise.resolve({ data: [] })
+          fetchMarketHistory(apiSymbol, assetMeta.type.toUpperCase(), timeframe),
+          compareEnabled ? fetchMarketHistory(compareSymbol || '^NSEI', 'INDEX', timeframe) : Promise.resolve({ data: [] })
         ]);
         mainRes = main;
         compRes = comp;
@@ -1066,14 +1089,14 @@ export default function TraderChartPanel({ symbol, price, assetType, variant = '
 
   return (
     <div ref={containerRef} className="flex flex-col h-full bg-[#0f172a] text-slate-300 font-sans selection:bg-cyan-500/30 relative">
-      {/* â”€â”€ Fullscreen Exit Message â”€â”€ */}
+      {/* ── Fullscreen Exit Message ── */}
       {isFullscreen && (
         <div className="absolute top-20 left-1/2 -translate-x-1/2 z-[100] px-4 py-2 bg-black/60 backdrop-blur-xl border border-white/10 rounded-full text-[10px] font-black text-white/80 uppercase tracking-widest animate-in fade-in slide-in-from-top-4 duration-700">
           Press <span className="text-cyan-400">ESC</span> to exit full screen
         </div>
       )}
 
-      {/* â”€â”€ Header â”€â”€ */}
+      {/* ── Header ── */}
       <div className="flex items-center justify-between px-6 h-12 border-b border-white/5 bg-[#111827]/80 backdrop-blur-md z-40">
         <div className="flex items-center">
           {advanced && (
@@ -1088,12 +1111,12 @@ export default function TraderChartPanel({ symbol, price, assetType, variant = '
 
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded bg-cyan-500/10 flex items-center justify-center border border-cyan-500/20">
-              <TrendingUp size={16} className="text-cyan-400" />
+              <span className="text-lg">{assetMeta.icon}</span>
             </div>
             <div className="flex items-baseline gap-2">
               <span className="text-base font-black text-white tracking-tight">{symbol}</span>
-              <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">
-                {String(assetType).toUpperCase() === 'CRYPTO' ? 'CRYPTO · USD' : 'NSE · INR'}
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                {assetMeta.exchange} · {assetMeta.currency}
               </span>
             </div>
           </div>
@@ -1133,7 +1156,7 @@ export default function TraderChartPanel({ symbol, price, assetType, variant = '
 
           {advanced && (
             <>
-              {/* â”€â”€ Timeframe Dropdown â”€â”€ */}
+              {/* ── Timeframe Dropdown ── */}
               <div className="relative border-l border-white/5 pl-6 ml-4">
                 <button
                   onClick={() => { setShowTfMenu(!showTfMenu); setShowTypeMenu(false); setShowIndMenu(false); }}
@@ -1162,7 +1185,7 @@ export default function TraderChartPanel({ symbol, price, assetType, variant = '
                 )}
               </div>
 
-              {/* â”€â”€ Chart Type Dropdown â”€â”€ */}
+              {/* ── Chart Type Dropdown ── */}
               <div className="relative border-l border-white/5 pl-4 ml-4">
                 <button
                   onClick={() => { setShowTypeMenu(!showTypeMenu); setShowTfMenu(false); setShowIndMenu(false); }}
@@ -1192,7 +1215,7 @@ export default function TraderChartPanel({ symbol, price, assetType, variant = '
                 )}
               </div>
 
-              {/* â”€â”€ Indicators Menu â”€â”€ */}
+              {/* ── Indicators Menu ── */}
               <div className="relative border-l border-white/5 pl-4 ml-4">
                 <button
                   onClick={() => { setShowIndMenu(!showIndMenu); setShowTfMenu(false); setShowTypeMenu(false); }}
@@ -1220,7 +1243,7 @@ export default function TraderChartPanel({ symbol, price, assetType, variant = '
                 )}
               </div>
 
-              {/* â”€â”€ Undo/Redo â”€â”€ */}
+              {/* ── Undo/Redo ── */}
               <div className="flex items-center gap-1 border-l border-white/5 pl-4 ml-4">
                 <button className="p-1.5 text-slate-500 hover:text-white transition-colors"><RotateCcw size={16} /></button>
                 <button className="p-1.5 text-slate-500 hover:text-white transition-colors rotate-180 scale-y-[-1]"><RotateCcw size={16} /></button>
@@ -1297,7 +1320,7 @@ export default function TraderChartPanel({ symbol, price, assetType, variant = '
       </div>
 
       <div className="flex-1 flex min-h-0 relative bg-[#0f172a]">
-        {/* â”€â”€ Fixed Left Sidebar Toolbar (Advanced Only) â”€â”€ */}
+        {/* ── Fixed Left Sidebar Toolbar (Advanced Only) ── */}
         {advanced && (
           <div className="w-14 border-r border-white/5 bg-[#111827]/40 flex flex-col items-center py-4 gap-4 z-40">
             <div className="flex flex-col gap-2">
@@ -1326,7 +1349,7 @@ export default function TraderChartPanel({ symbol, price, assetType, variant = '
           </div>
         )}
 
-        {/* â”€â”€ Main Viewport Area â”€â”€ */}
+        {/* ── Main Viewport Area ── */}
         <div className="flex-1 flex flex-col min-w-0 bg-[#0f172a] relative">
           {advanced ? (
             <div className={`grid h-full w-full gap-px bg-white/5 ${
@@ -1362,7 +1385,7 @@ export default function TraderChartPanel({ symbol, price, assetType, variant = '
             <div ref={mainRef} className="h-full w-full" />
           )}
 
-          {/* â”€â”€ Advanced Settings Overlay â”€â”€ */}
+          {/* ── Advanced Settings Overlay ── */}
           {showSettings && (
             <div className="absolute top-4 right-4 w-80 bg-[#1e293b] border border-white/10 rounded-2xl shadow-2xl z-50 overflow-hidden animate-in fade-in zoom-in duration-200">
               <div className="p-5 border-b border-white/5 flex items-center justify-between">
@@ -1430,7 +1453,7 @@ export default function TraderChartPanel({ symbol, price, assetType, variant = '
 
 
 
-        {/* â”€â”€ Right Panel: Insights & Signals (Advanced Only) â”€â”€ */}
+        {/* ── Right Panel: Insights & Signals (Advanced Only) ── */}
         {advanced && (
           <div className="w-[300px] border-l border-white/5 bg-[#0f172a] flex flex-col z-30 animate-in slide-in-from-right duration-500">
             <div className="p-4 border-b border-white/5 flex items-center justify-between">
@@ -1508,14 +1531,16 @@ export default function TraderChartPanel({ symbol, price, assetType, variant = '
         )}
       </div>
 
-      {/* â”€â”€ Research Footer â”€â”€ */}
+      {/* ── Research Footer ── */}
       <div className="h-8 border-t border-white/5 bg-[#111827] flex items-center justify-between px-4 z-40">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2 text-[10px] font-bold text-slate-500">
-            <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
+            <div className={`w-2 h-2 rounded-full ${mktOpen ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.5)]'}`} />
             Connected
           </div>
-          <div className="text-[10px] font-bold text-slate-600 uppercase tracking-widest border-l border-white/5 pl-4">Market Open</div>
+          <div className={`text-[10px] font-bold uppercase tracking-widest border-l border-white/5 pl-4 ${mktOpen ? 'text-emerald-500' : 'text-slate-600'}`}>
+            {isCrypto ? 'CRYPTO MARKET: OPEN 24/7' : (mktOpen ? 'MARKET OPEN' : 'MARKET CLOSED')}
+          </div>
         </div>
         <div className="text-[10px] font-mono text-slate-600 flex items-center gap-4">
           <span>UTC +5:30</span>

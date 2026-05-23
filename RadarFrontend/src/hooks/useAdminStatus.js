@@ -7,8 +7,38 @@ import {
     fetchRefreshStats,
     fetchCacheStats,
     fetchOfflineStatus,
+    getProviderHealth,
 } from '../api/adminApi';
 
+export const useProviderHealth = (refreshInterval = 15000) => {
+    const [health, setHealth] = useState({ providers: [], overallHealth: 'unknown' });
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
+
+    const fetchHealth = useCallback(async () => {
+        setLoading(true);
+        setError(null);
+        try {
+            const data = await getProviderHealth();
+            setHealth(data);
+        } catch (err) {
+            setError(err.message || 'Failed to fetch provider health');
+            setHealth({ providers: [], overallHealth: 'error' });
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchHealth();
+        if (refreshInterval && refreshInterval > 0) {
+            const intervalId = setInterval(fetchHealth, refreshInterval);
+            return () => clearInterval(intervalId);
+        }
+    }, [refreshInterval, fetchHealth]);
+
+    return { health, loading, error, refetch: fetchHealth };
+};
 
 export const useAutoUpdateStatus = (refreshInterval = 10000) => {
     const [status, setStatus] = useState(null);

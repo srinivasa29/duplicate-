@@ -7,11 +7,11 @@ import ContactInfo from './components/ContactInfo';
 import FAQAccordion from './components/FAQAccordion';
 import './HelpSupportPage.css';
 
-const HelpSupportPage = () => {
+const HelpSupportPage = ({ embedded = false, dashboardPath = '/trader/dashboard' } = {}) => {
   const navigate = useNavigate();
 
   const handleBackToDashboard = () => {
-    navigate('/dashboard/trader');
+    navigate(dashboardPath);
   };
 
   return (
@@ -28,15 +28,17 @@ const HelpSupportPage = () => {
       >
         <div className="help-header-content">
           <div className="help-header-left">
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={handleBackToDashboard}
-              className="back-to-dashboard-btn help-back-left-btn"
-            >
-              <ArrowLeft size={18} />
-              Back to Dashboard
-            </motion.button>
+            {!embedded && (
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={handleBackToDashboard}
+                className="back-to-dashboard-btn help-back-left-btn"
+              >
+                <ArrowLeft size={18} />
+                Back to Dashboard
+              </motion.button>
+            )}
             <h1 className="help-title">Help & Support</h1>
             <p className="help-subtitle">
               Get help with insights, charts, and account access

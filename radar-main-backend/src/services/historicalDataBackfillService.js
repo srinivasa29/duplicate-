@@ -83,6 +83,22 @@ const SENSEX_30_SYMBOLS = [
     'POWERGRID.BO', 'INDUSINDBK.BO', 'TATAMOTORS.BO', 'DRREDDY.BO', 'BAJAJFINSV.BO',
 ];
 
+// ── NSE Indices ───────────────────────────────────────────────────────────
+// Note: Yahoo Finance uses different symbols than the NSE display names
+const NSE_INDEX_SYMBOLS = [
+    '^NSEI',                  // NIFTY 50
+    '^NSEBANK',               // BANKNIFTY
+    'NIFTY_FIN_SERVICE.NS',   // FINNIFTY (Yahoo Finance format)
+    '^NSEMDCP50',             // MIDCPNIFTY
+    '^BSESN',                 // SENSEX
+    '^INDIAVIX',              // India VIX
+];
+
+// ── Top Crypto — must use Yahoo Finance -USD format ────────────────────
+const CRYPTO_SYMBOLS = [
+    'BTC-USD', 'ETH-USD', 'SOL-USD', 'DOGE-USD', 'XRP-USD',
+];
+
 // All NSE equity symbols combined (deduped)
 const ALL_NSE_SYMBOLS = [
     ...new Set([
@@ -317,12 +333,37 @@ class HistoricalDataBackfillService {
         return results;
     }
 
+    async backfillIndices(timeframe = '1d', range = '2y') {
+        logger.info('🚀 Starting NSE Index backfill');
+        return this._backfillList(NSE_INDEX_SYMBOLS, 'NSE', timeframe, range, 'NSE Indices');
+    }
+
+    async backfillCrypto(timeframe = '1d', range = '1y') {
+        logger.info('🚀 Starting Crypto backfill');
+        return this._backfillList(CRYPTO_SYMBOLS, 'CRYPTO', timeframe, range, 'Crypto');
+    }
+
     getNifty50Symbols() { return NIFTY_50_SYMBOLS; }
     getNiftyNext50Symbols() { return NIFTY_NEXT_50_SYMBOLS; }
     getMidcapSymbols() { return NIFTY_MIDCAP_SYMBOLS; }
     getSectoralSymbols() { return SECTORAL_SYMBOLS; }
     getAllNseSymbols() { return ALL_NSE_SYMBOLS; }
     getSensex30Symbols() { return SENSEX_30_SYMBOLS; }
+    getIndexSymbols() { return NSE_INDEX_SYMBOLS; }
+    getCryptoSymbols() { return CRYPTO_SYMBOLS; }
+
+    /** Master runner — seeds ALL data types into MongoDB */
+    async backfillTopIndianStocks(timeframe = '1d', range = '1y') {
+        const nifty50   = await this.backfillNifty50(timeframe, range);
+        const indices   = await this.backfillIndices(timeframe, '2y');
+        const crypto    = await this.backfillCrypto(timeframe, range);
+
+        const totalSuccess = nifty50.success.length + indices.success.length + crypto.success.length;
+        const totalFailed  = nifty50.failed.length  + indices.failed.length  + crypto.failed.length;
+        const totalSkipped = nifty50.skipped.length + indices.skipped.length + crypto.skipped.length;
+
+        return { nifty50, indices, crypto, totalSuccess, totalFailed, totalSkipped };
+    }
 }
 
 module.exports = new HistoricalDataBackfillService();

@@ -1,12 +1,6 @@
-//const { fetchStockData } = require('./stockService');
-const {
-    fetchStockData,
-    fetchTwelveDataQuotes,
-    fetchYahooFundamentals
-} = require('./stockService');
-const { getTechnicalIndicators } = require('./indicatorService');
+const { fetchStockData } = require('./stockService');
+const { getTechnicalIndicators, getTechnicalIndicatorsFromOHLC } = require('./indicatorService');
 const { getInstrumentScore } = require('./scoringService');
-const yahooFinanceService = require('./yahooFinanceService');
 
 const DEFAULT_LIMIT = 25;
 const MAX_LIMIT = 200;
@@ -39,13 +33,16 @@ const toNumber = (value, fallback = NaN) => {
 
 const isFiniteNumber = (value) => Number.isFinite(Number(value));
 
+// Returns true if the value is within [min, max].
+// If NEITHER bound is specified, the check is skipped entirely (pass-through),
+// so rows with NaN field values are still included in unfiltered results.
 const inRange = (value, min, max) => {
     const hasMin = isFiniteNumber(min);
     const hasMax = isFiniteNumber(max);
-    if (!hasMin && !hasMax) return true; // No filter applied for this field
-    
-    if (!isFiniteNumber(value)) return false; // Filter is applied, but value is missing
-    
+    // No constraint at all — always pass
+    if (!hasMin && !hasMax) return true;
+    // Value must be finite when a bound IS specified
+    if (!isFiniteNumber(value)) return false;
     if (hasMin && Number(value) < Number(min)) return false;
     if (hasMax && Number(value) > Number(max)) return false;
     return true;
@@ -64,8 +61,6 @@ const applyBaseFilters = (rows, filters) => rows.filter((row) => {
     if (!inRange(row.change, filters.minChange, filters.maxChange)) return false;
     if (!inRange(row.pe, filters.minPe, filters.maxPe)) return false;
     if (!inRange(row.marketCapNumeric, filters.minMarketCap, filters.maxMarketCap)) return false;
-    if (!inRange(row.roe, filters.minRoe, filters.maxRoe)) return false;
-    if (!inRange(row.dividendYield, filters.minYield, filters.maxYield)) return false;
 
     if (Array.isArray(filters.sectors) && filters.sectors.length > 0) {
         const normalizedSectors = filters.sectors.map((sector) => String(sector || '').toLowerCase());
@@ -100,14 +95,12 @@ const applyTechnicalFilters = (rows, filters) => rows.filter((row) => {
 
 const parseMarketCap = (value) => {
     if (!value) return NaN;
-    const text = String(value).toUpperCase().replace(/[$,₹\s]/g, '');
-    let multiplier = 1;
-    if (text.endsWith('T')) multiplier = 1_000_000_000_000;
-    else if (text.endsWith('B')) multiplier = 1_000_000_000;
-    else if (text.endsWith('M')) multiplier = 1_000_000;
-    else if (text.endsWith('CR')) multiplier = 10_000_000;
-    
-    const numeric = Number.parseFloat(text.replace(/[TBM]|CR$/g, ''));
+    const text = String(value).toUpperCase().replace(/[$,\s]/g, '');
+    const multiplier = text.endsWith('T') ? 1_000_000_000_000
+        : text.endsWith('B') ? 1_000_000_000
+            : text.endsWith('M') ? 1_000_000
+                : 1;
+    const numeric = Number.parseFloat(text.replace(/[TBM]$/, ''));
     return Number.isFinite(numeric) ? numeric * multiplier : NaN;
 };
 
@@ -152,10 +145,36 @@ const sortRows = (rows, sortBy, sortOrder) => {
 const attachTechnicals = async (rows, strictLive) => {
     return Promise.all(rows.map(async (row) => {
         try {
-            const [indicators, score] = await Promise.all([
-                getTechnicalIndicators('stock', row.symbol, '1D', { strictLive }),
-                getInstrumentScore('stock', row.symbol, { strictLive }),
-            ]);
+            // Prefer OHLC database for stock screeners (fast, reliable)
+            // Only use live API if strictLive flag is set or OHLC has insufficient data
+            let indicators;
+            let source = 'api';
+
+            if (!strictLive) {
+                try {
+                    const ohlcIndicators = await getTechnicalIndicatorsFromOHLC(
+                        row.symbol,
+                        'NSE',
+                        '1d',
+                        365
+                    );
+                    if (ohlcIndicators.status === 'success' && ohlcIndicators.dataPoints >= 26) {
+                        indicators = ohlcIndicators;
+                        source = 'ohlc_db';
+                    } else {
+                        // Fall back to live API
+                        indicators = await getTechnicalIndicators('stock', row.symbol, '1D', { strictLive: false });
+                    }
+                } catch (_err) {
+                    // Fall back to live API on OHLC error
+                    indicators = await getTechnicalIndicators('stock', row.symbol, '1D', { strictLive: false });
+                }
+            } else {
+                // Use live API only when explicitly requested
+                indicators = await getTechnicalIndicators('stock', row.symbol, '1D', { strictLive: true });
+            }
+
+            const score = await getInstrumentScore('stock', row.symbol, { strictLive });
 
             return {
                 ...row,
@@ -163,16 +182,18 @@ const attachTechnicals = async (rows, strictLive) => {
                 volumeStatus: indicators?.volumeStatus || null,
                 score: toNumber(score?.score, NaN),
                 bias: score?.bias || 'neutral',
-                technicalLive: true,
+                technicalLive: source === 'api',
+                technicalSource: source,
             };
         } catch (_error) {
             return {
                 ...row,
-                rsi: 50,
-                volumeStatus: 'normal',
-                score: 60,
+                rsi: NaN,
+                volumeStatus: null,
+                score: NaN,
                 bias: 'neutral',
                 technicalLive: false,
+                technicalSource: 'error',
             };
         }
     }));
@@ -194,14 +215,8 @@ const buildRow = (stock) => ({
     score: NaN,
     bias: 'neutral',
     technicalLive: false,
-    roe: toNumber(stock.details?.roe, NaN),
-    dividendYield: toNumber(stock.details?.dividend_yield, NaN),
+    technicalSource: 'pending',
 });
-
-const getValidFundamental = (yahooVal, fallbackVal) => {
-    if (yahooVal && yahooVal !== 'N/A' && yahooVal !== 'NaN') return yahooVal;
-    return fallbackVal;
-};
 
 const runScreener = async (payload = {}) => {
     const presetName = String(payload.preset || '').trim().toLowerCase();
@@ -217,94 +232,41 @@ const runScreener = async (payload = {}) => {
     const limit = Math.max(1, Math.min(MAX_LIMIT, Number(payload.limit || DEFAULT_LIMIT)));
     const strictLive = payload.strictLive === true;
 
-    // const stocks = await fetchStockData();
     const stocks = await fetchStockData();
-
     const baseRows = (Array.isArray(stocks) ? stocks : []).map(buildRow);
-    const enrichedBaseRows = await Promise.all(
-    baseRows.map(async (row) => {
 
-        const fundamentals =
-            await fetchYahooFundamentals(row.symbol);
-        console.log(
-            'YAHOO FUNDAMENTALS:',
-            row.symbol,
-            fundamentals
-        );
-        return {
-            ...row,
-
-            pe:
-                getValidFundamental(fundamentals?.peRatio, row.pe),
-
-            marketCap:
-                getValidFundamental(fundamentals?.marketCap, row.marketCap),
-
-            sector:
-                getValidFundamental(fundamentals?.sector, row.sector),
-
-            eps:
-                getValidFundamental(fundamentals?.eps, null),
-
-            beta:
-                getValidFundamental(fundamentals?.beta, null),
-
-            dividendYield:
-                getValidFundamental(fundamentals?.dividendYield, row.dividendYield),
-
-            roe:
-                getValidFundamental(fundamentals?.roe, row.roe),
-        };
-    })
-);
-
-    console.log("FIRST BASE ROW:", baseRows[0]);
-
-    const filteredBase = applyBaseFilters(enrichedBaseRows, filters)
+    const filteredBase = applyBaseFilters(baseRows, filters);
     const enrichedRows = needsTechnicalData(filters, sortBy)
         ? await attachTechnicals(filteredBase, strictLive)
         : filteredBase;
 
     const filteredRows = applyTechnicalFilters(enrichedRows, filters);
     const sorted = sortRows(filteredRows, sortBy, sortOrder);
-    console.log("DEBUG: enrichedBaseRows length:", enrichedBaseRows.length);
-    console.log("DEBUG: sorted length:", sorted.length);
-    const finalRows = sorted.length > 0 ? sorted : sortRows(enrichedBaseRows, sortBy, sortOrder);
-    console.log("DEBUG: finalRows length:", finalRows.length);
-    
-    const results = await Promise.all(finalRows.slice(0, limit).map(async (row) => {
-        let sparklineData = null;
-        try {
-            // Fetch real-time trend data for the top matched stocks for the last 30 days
-            const hist = await yahooFinanceService.fetchHistoricalData(row.symbol, '1d', '1mo');
-            if (hist.success && hist.data) {
-                // Plot 1 day candle for a history of 15 days
-                sparklineData = hist.data.slice(-15).map(c => ({ value: c.close || c.adjustedClose }));
-            } else {
-                console.log('Sparkline fetch failed for', row.symbol, hist.error);
-            }
-        } catch (e) {
-            console.log('Sparkline catch block:', row.symbol, e.message);
-        }
-
-        return {
-            symbol: row.symbol,
-            displaySymbol: row.displaySymbol,
-            name: row.name,
-            price: Number.isFinite(row.price) ? Number(row.price.toFixed(2)) : null,
-            change: Number.isFinite(row.change) ? Number(row.change.toFixed(2)) : null,
-            sector: row.sector,
-            pe: Number.isFinite(row.pe) ? Number(row.pe.toFixed(2)) : null,
-            marketCap: row.marketCap,
-            rsi: Number.isFinite(row.rsi) ? Number(row.rsi.toFixed(2)) : null,
-            score: Number.isFinite(row.score) ? Number(row.score.toFixed(0)) : null,
-            bias: row.bias,
-            volumeStatus: row.volumeStatus,
-            technicalLive: row.technicalLive,
-            roe: Number.isFinite(row.roe) ? Number(row.roe.toFixed(2)) : null,
-            dividendYield: Number.isFinite(row.dividendYield) ? Number(row.dividendYield.toFixed(2)) : null,
-            sparklineData
-        };
+    const results = sorted.slice(0, limit).map((row) => ({
+        symbol: row.symbol,
+        displaySymbol: row.displaySymbol,
+        name: row.name,
+        price: Number.isFinite(row.price) ? Number(row.price.toFixed(2)) : 0,
+        change: Number.isFinite(row.change) ? Number(row.change.toFixed(2)) : 0,
+        sector: row.sector !== 'Unknown' ? row.sector : (row.details?.sector || 'Equity'),
+        pe: Number.isFinite(row.pe) ? Number(row.pe.toFixed(2)) : null,
+        marketCap: row.marketCap,
+        marketCapNumeric: row.marketCapNumeric,
+        rsi: Number.isFinite(row.rsi) ? Number(row.rsi.toFixed(2)) : null,
+        score: Number.isFinite(row.score) ? Number(row.score.toFixed(0)) : 75,
+        bias: row.bias,
+        volumeStatus: row.volumeStatus,
+        technicalLive: row.technicalLive,
+        technicalSource: row.technicalSource,
+        // Helpful for frontend display
+        signal: row.bias === 'bullish' ? 'BULLISH' : row.bias === 'bearish' ? 'BEARISH' : 'NEUTRAL',
+        why: row.bias === 'bullish'
+            ? 'Bullish momentum detected based on technical scoring.'
+            : row.bias === 'bearish'
+                ? 'Bearish pressure detected. Risk elevated above benchmark.'
+                : 'Stock matched screener criteria. No directional signal.',
+        tags: [row.sector || 'Equity', row.bias || 'neutral'].filter(Boolean),
+        confidence: Number.isFinite(row.score) ? Math.min(99, Math.max(50, row.score)) : 75,
     }));
 
     return {

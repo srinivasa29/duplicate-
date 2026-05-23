@@ -27,9 +27,15 @@ export default function Register() {
     onSuccess: async (tokenResponse) => {
       try {
         setLoading(true);
-        const res = await api.post('/auth/google', { token: tokenResponse.credential || tokenResponse.access_token });
-        localStorage.setItem('token', res.data.token);
+      const res = await api.post('/auth/google', { token: tokenResponse.credential || tokenResponse.access_token, isSignup: true });
+      localStorage.setItem('token', res.data.token);
+      localStorage.setItem('userEmail', res.data.email || '');
+      localStorage.setItem('user', JSON.stringify({ username: res.data.username, email: res.data.email }));
+      if (res.data.isNewUser) {
+        window.location.href = '/onboarding';
+      } else {
         window.location.href = '/dashboard';
+      }
       } catch (error) {
         setLoading(false);
         setErrors({ general: 'Google Signup Failed' });
@@ -57,16 +63,17 @@ export default function Register() {
     setLoading(true);
 
     try {
-      await api.post('/auth/register', {
+      const res = await api.post('/auth/register', {
         username,
+        email: identifier,
+        identifier,
         password
-
-
-
       });
 
-
-      window.location.href = '/login';
+      localStorage.setItem('token', res.data.token);
+      localStorage.setItem('userEmail', res.data.email || identifier);
+      localStorage.setItem('user', JSON.stringify({ username: res.data.username, email: res.data.email || identifier }));
+      window.location.href = '/onboarding';
     } catch (error) {
       setLoading(false);
       setErrors({ general: error.response?.data?.error || 'Registration Failed' });

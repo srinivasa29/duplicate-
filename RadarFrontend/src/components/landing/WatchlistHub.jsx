@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Bell, X } from 'lucide-react';
-import { fetchMarketData } from '../../api/marketApi';
+import { fetchLiveUniversePrices } from '../../services/apiHelpers';
 
 const fallbackWatchlistItems = [
     { symbol: 'BTC-USD', price: 42505.2, change_24h: 2.4, type: 'CRYPTO' },
@@ -23,11 +23,15 @@ export default function WatchlistHub() {
 
         const loadWatchlist = async () => {
             try {
-                const rows = await fetchMarketData();
+                // Fetch the batched universe prices and pick top 6
+                const rows = await fetchLiveUniversePrices({ suffix: '.NSE' });
                 const marketRows = Array.isArray(rows) ? rows : [];
-                const picked = marketRows
-                    .filter((item) => ['CRYPTO', 'STOCK', 'FOREX', 'COMMODITY'].includes(String(item?.type || '').toUpperCase()))
-                    .slice(0, 6);
+                const picked = marketRows.slice(0, 6).map(r => ({
+                    symbol: String(r.symbol || r.symbols || r.ticker || '').replace(/\.(NS|BO)$/i, ''),
+                    price: Number(r.price ?? r.close ?? r.last_price ?? r.ltp ?? 0),
+                    change_24h: Number(r.percent_change ?? r.change_percent ?? r.pChange ?? 0),
+                    type: 'STOCK'
+                }));
 
                 if (isMounted && picked.length) {
                     setWatchlistItems(picked);

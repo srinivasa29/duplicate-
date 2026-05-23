@@ -5,16 +5,20 @@ import { PieChart as RechartsPieChart, Pie, Cell, ResponsiveContainer } from 're
 
 const PortfolioSummary = ({ stocks }) => {
   const stats = useMemo(() => {
-    const totalValue = stocks.reduce((sum, stock) => sum + stock.price, 0);
-    const totalChange = stocks.reduce((sum, stock) => sum + stock.change, 0);
-    const totalPercent = stocks.reduce((sum, stock) => sum + stock.percent, 0) / stocks.length || 0;
+    const rows = Array.isArray(stocks) ? stocks : [];
+    const totalValue = rows.reduce((sum, stock) => sum + Number(stock.price || 0), 0);
+    const totalChange = rows.reduce((sum, stock) => sum + Number(stock.change || 0), 0);
+    const totalPercent = rows.length
+      ? rows.reduce((sum, stock) => sum + Number(stock.percent || 0), 0) / rows.length
+      : 0;
 
-    const gainer = stocks.reduce((prev, current) =>
-      prev.change > current.change ? prev : current
-    );
-    const loser = stocks.reduce((prev, current) =>
-      prev.change < current.change ? prev : current
-    );
+    const emptyStock = { symbol: '-', change: 0, percent: 0 };
+    const gainer = rows.length
+      ? rows.reduce((prev, current) => prev.change > current.change ? prev : current)
+      : emptyStock;
+    const loser = rows.length
+      ? rows.reduce((prev, current) => prev.change < current.change ? prev : current)
+      : emptyStock;
 
     const sectors = [
       { name: 'Banking', value: 25, color: '#3b82f6' },

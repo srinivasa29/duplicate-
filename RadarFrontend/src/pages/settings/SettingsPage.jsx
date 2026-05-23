@@ -1,68 +1,118 @@
-import React, { useState } from 'react';
-import { ArrowLeft, Monitor, Bell, Shield, Database, Save, Info } from 'lucide-react';
+import React, { useState, useEffect, useContext } from 'react';
+import { ArrowLeft, Monitor, Bell, Shield, LayoutGrid, CheckCircle2, Info } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { SettingsContext } from '../../context/SettingsContext';
 import './SettingsPage.css';
 
-const SettingsPage = () => {
+const SettingsPage = ({ embedded = false } = {}) => {
   const navigate = useNavigate();
+  const { settings: ctxSettings, saveSettings: saveToServer } = useContext(SettingsContext);
 
   const [settings, setSettings] = useState({
-    // Display & Chart
-    chartType: 'Candlestick',
-    defaultTimeframe: '5m',
+    // Chart & Display
+    defaultTimeframe: '15m',
+    defaultLayout: '4-grid',
     showGridLines: true,
-    showCrosshair: true,
-    theme: 'Dark',
+    showIndicators: false,
 
-    // Alerts & Notifications
-    priceAlerts: true,
-    volumeSpikes: true,
-    technicalSignals: true,
-    notificationMethod: 'In-app',
-    alertSound: true,
+    // Dashboard Preferences
+    defaultModule: 'DASHBOARD',
+    autoRefreshWatchlist: true,
 
-    // Risk Management
+    // Risk Defaults
     defaultStopLoss: 2.0,
     defaultTakeProfit: 5.0,
-    positionSizeLimit: 10.0,
-    maxDrawdownTolerance: 15.0,
 
-    // Data & Refresh
-    realtimeRefreshRate: '1s',
-    quoteUpdateFrequency: '5s',
-    autoRefreshWatchlist: true,
-    refreshInterval: '1m',
+    // Alerts
+    priceAlerts: true,
   });
 
-  const [saved, setSaved] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [lastSaved, setLastSaved] = useState(null);
+  const [isDirty, setIsDirty] = useState(false);
 
-  const handleToggle = (key) => {
-    setSettings((prev) => ({
-      ...prev,
-      [key]: !prev[key],
-    }));
+  // Load saved settings from context on mount
+  useEffect(() => {
+    if (!ctxSettings) return;
+    try {
+      setSettings(prev => ({
+        ...prev,
+        defaultTimeframe:     ctxSettings.display?.defaultTimeframe     ?? prev.defaultTimeframe,
+        defaultLayout:        ctxSettings.display?.defaultLayout        ?? prev.defaultLayout,
+        showGridLines:        ctxSettings.display?.showGridLines        ?? prev.showGridLines,
+        showIndicators:       ctxSettings.display?.showIndicators       ?? prev.showIndicators,
+        defaultModule:        ctxSettings.dashboard?.defaultModule      ?? prev.defaultModule,
+        autoRefreshWatchlist: ctxSettings.dashboard?.autoRefreshWatchlist ?? prev.autoRefreshWatchlist,
+        defaultStopLoss:      ctxSettings.risk?.defaultStopLossPct      ?? prev.defaultStopLoss,
+        defaultTakeProfit:    ctxSettings.risk?.defaultTakeProfitPct    ?? prev.defaultTakeProfit,
+        priceAlerts:          ctxSettings.alerts?.priceAlerts           ?? prev.priceAlerts,
+      }));
+    } catch (e) { /* ignore mapping errors */ }
+  }, [ctxSettings]);
+
+  // Warn on unsaved changes
+  useEffect(() => {
+    const handler = (e) => { if (isDirty) { e.preventDefault(); e.returnValue = ''; } };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [isDirty]);
+
+  const handleSave = async () => {
+    const payload = {
+      display: {
+        defaultTimeframe: settings.defaultTimeframe,
+        defaultLayout:    settings.defaultLayout,
+        showGridLines:    !!settings.showGridLines,
+        showIndicators:   !!settings.showIndicators,
+      },
+      dashboard: {
+        defaultModule:        settings.defaultModule,
+        autoRefreshWatchlist: !!settings.autoRefreshWatchlist,
+      },
+      risk: {
+        defaultStopLossPct:   Number(settings.defaultStopLoss)  || 2,
+        defaultTakeProfitPct: Number(settings.defaultTakeProfit) || 5,
+      },
+      alerts: {
+        priceAlerts: !!settings.priceAlerts,
+      },
+    };
+    setIsSaving(true);
+    try {
+      await saveToServer(payload);
+      setLastSaved(new Date());
+      setIsDirty(false);
+    } catch (err) {
+      console.error('Failed to save settings:', err);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  const handleChange = (key, value) => {
-    setSettings((prev) => ({
-      ...prev,
-      [key]: value,
-    }));
+  const handleBack = () => {
+    if (isDirty && !window.confirm('You have unsaved changes. Leave without saving?')) return;
+    navigate('/trader/dashboard');
   };
 
-  const handleSave = () => {
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+  const set = (key, value) => {
+    setSettings(prev => ({ ...prev, [key]: value }));
+    setIsDirty(true);
   };
+  const toggle = (key) => set(key, !settings[key]);
 
-  const chartTypeOptions = ['Candlestick', 'Line', 'Area'];
-  const timeframeOptions = ['1m', '5m', '15m', '1h', '1D'];
-  const refreshRateOptions = ['1s', '5s', '10s'];
-  const updateFrequencyOptions = ['1s', '5s', '10s'];
-  const refreshIntervalOptions = ['1m', '5m', '10m'];
-  const notificationMethods = ['In-app', 'Email', 'SMS'];
-  const themeOptions = ['Dark', 'Light'];
+  const timeframeOptions  = ['1m', '5m', '15m', '1h', '1D'];
+  const layoutOptions     = [
+    { value: '1-grid', label: '1 Chart' },
+    { value: '2-grid', label: '2 Charts' },
+    { value: '4-grid', label: '4 Charts' },
+  ];
+  const moduleOptions     = [
+    { value: 'DASHBOARD',    label: 'Dashboard' },
+    { value: 'MULTI-CHART',  label: 'Multi-Chart' },
+    { value: 'WATCHLIST',    label: 'Watchlist' },
+    { value: 'SCREENERS',    label: 'Screeners' },
+  ];
 
   return (
     <div className="settings-page">
@@ -70,14 +120,15 @@ const SettingsPage = () => {
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
+        transition={{ duration: 0.4 }}
         className="settings-header"
       >
         <div className="settings-header-content">
-          <button onClick={() => navigate('/dashboard/trader')} className="back-btn">
-            <ArrowLeft size={20} />
-            Back to Dashboard
-          </button>
+          {!embedded && (
+            <button onClick={handleBack} className="back-btn">
+              <ArrowLeft size={20} /> Back to Dashboard
+            </button>
+          )}
           <div className="settings-title-section">
             <h1 className="settings-title">Settings</h1>
             <p className="settings-subtitle">Customize your trading dashboard experience</p>
@@ -85,58 +136,50 @@ const SettingsPage = () => {
         </div>
       </motion.div>
 
-      {/* Main Container */}
       <div className="settings-container">
         <div className="settings-grid">
-          {/* 1. Display & Chart Preferences */}
+
+          {/* ── 1. Chart & Display ─────────────────────────────────── */}
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.1 }}
+            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.1 }}
             className="settings-card"
           >
             <div className="card-header">
               <Monitor size={24} />
               <div>
-                <h2 className="card-title">1. Display & Chart Preferences</h2>
-                <p className="card-description">Customize how charts and data are displayed.</p>
+                <h2 className="card-title">1. Chart &amp; Display</h2>
+                <p className="card-description">Controls the workspace charts directly.</p>
               </div>
             </div>
 
             <div className="card-content">
-              {/* Chart Type */}
+              {/* Default Timeframe */}
               <div className="setting-item">
-                <label className="setting-label">Chart Type</label>
+                <label className="setting-label">Default Timeframe</label>
                 <div className="button-group">
-                  {chartTypeOptions.map((option) => (
+                  {timeframeOptions.map(tf => (
                     <button
-                      key={option}
-                      className={`button-option ${settings.chartType === option ? 'active' : ''}`}
-                      onClick={() => handleChange('chartType', option)}
-                    >
-                      {option}
-                    </button>
+                      key={tf}
+                      className={`button-option ${settings.defaultTimeframe === tf ? 'active' : ''}`}
+                      onClick={() => set('defaultTimeframe', tf)}
+                    >{tf}</button>
                   ))}
                 </div>
               </div>
 
-              {/* Default Timeframe */}
+              {/* Default Chart Layout */}
               <div className="setting-item">
-                <label htmlFor="timeframe" className="setting-label">
-                  Default Timeframe
-                </label>
-                <select
-                  id="timeframe"
-                  value={settings.defaultTimeframe}
-                  onChange={(e) => handleChange('defaultTimeframe', e.target.value)}
-                  className="select-input"
-                >
-                  {timeframeOptions.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
+                <label className="setting-label">Default Chart Layout</label>
+                <div className="button-group">
+                  {layoutOptions.map(l => (
+                    <button
+                      key={l.value}
+                      className={`button-option ${settings.defaultLayout === l.value ? 'active' : ''}`}
+                      onClick={() => set('defaultLayout', l.value)}
+                    >{l.label}</button>
                   ))}
-                </select>
+                </div>
               </div>
 
               {/* Toggles */}
@@ -144,202 +187,100 @@ const SettingsPage = () => {
                 <div className="toggle-item">
                   <label>Show Grid Lines</label>
                   <button
+                    type="button"
                     className={`toggle-switch ${settings.showGridLines ? 'active' : ''}`}
-                    onClick={() => handleToggle('showGridLines')}
-                  >
-                    <span className="toggle-circle" />
-                  </button>
+                    onClick={() => toggle('showGridLines')}
+                  ><span className="toggle-circle" /></button>
                 </div>
                 <div className="toggle-item">
-                  <label>Show Crosshair</label>
+                  <label>Show MA Indicators</label>
                   <button
-                    className={`toggle-switch ${settings.showCrosshair ? 'active' : ''}`}
-                    onClick={() => handleToggle('showCrosshair')}
-                  >
-                    <span className="toggle-circle" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Theme */}
-              <div className="setting-item">
-                <label className="setting-label">Theme</label>
-                <div className="button-group">
-                  {themeOptions.map((option) => (
-                    <button
-                      key={option}
-                      className={`button-option ${settings.theme === option ? 'active' : ''}`}
-                      onClick={() => handleChange('theme', option)}
-                    >
-                      {option}
-                    </button>
-                  ))}
+                    type="button"
+                    className={`toggle-switch ${settings.showIndicators ? 'active' : ''}`}
+                    onClick={() => toggle('showIndicators')}
+                  ><span className="toggle-circle" /></button>
                 </div>
               </div>
             </div>
           </motion.div>
 
-          {/* 2. Alerts & Notifications */}
+          {/* ── 2. Dashboard Preferences ───────────────────────────── */}
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.2 }}
+            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.2 }}
             className="settings-card"
           >
             <div className="card-header">
-              <Bell size={24} />
+              <LayoutGrid size={24} />
               <div>
-                <h2 className="card-title">2. Alerts & Notifications</h2>
-                <p className="card-description">Manage your alerts and notification preferences.</p>
+                <h2 className="card-title">2. Dashboard Preferences</h2>
+                <p className="card-description">Controls what loads when you open the dashboard.</p>
               </div>
             </div>
 
             <div className="card-content">
-              {/* Alert Toggles */}
-              <div className="toggle-stack">
-                <div className="toggle-item">
-                  <label>Price Alerts</label>
-                  <button
-                    className={`toggle-switch ${settings.priceAlerts ? 'active' : ''}`}
-                    onClick={() => handleToggle('priceAlerts')}
-                  >
-                    <span className="toggle-circle" />
-                  </button>
-                </div>
-
-                <div className="toggle-item">
-                  <label>Volume Spike Alerts</label>
-                  <button
-                    className={`toggle-switch ${settings.volumeSpikes ? 'active' : ''}`}
-                    onClick={() => handleToggle('volumeSpikes')}
-                  >
-                    <span className="toggle-circle" />
-                  </button>
-                </div>
-
-                <div className="toggle-item">
-                  <label>Technical Signal Alerts (RSI, MACD)</label>
-                  <button
-                    className={`toggle-switch ${settings.technicalSignals ? 'active' : ''}`}
-                    onClick={() => handleToggle('technicalSignals')}
-                  >
-                    <span className="toggle-circle" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Notification Method */}
+              {/* Default Landing Module */}
               <div className="setting-item">
-                <label htmlFor="notificationMethod" className="setting-label">
-                  Notification Method
-                </label>
+                <label htmlFor="defaultModule" className="setting-label">Default Landing Module</label>
                 <select
-                  id="notificationMethod"
-                  value={settings.notificationMethod}
-                  onChange={(e) => handleChange('notificationMethod', e.target.value)}
+                  id="defaultModule"
+                  value={settings.defaultModule}
+                  onChange={e => set('defaultModule', e.target.value)}
                   className="select-input"
                 >
-                  {notificationMethods.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
+                  {moduleOptions.map(m => (
+                    <option key={m.value} value={m.value}>{m.label}</option>
                   ))}
                 </select>
               </div>
 
-              {/* Alert Sound */}
+              {/* Auto-refresh Watchlist */}
               <div className="toggle-item">
-                <label>Alert Sound</label>
+                <label>Auto-refresh Watchlist</label>
                 <button
-                  className={`toggle-switch ${settings.alertSound ? 'active' : ''}`}
-                  onClick={() => handleToggle('alertSound')}
-                >
-                  <span className="toggle-circle" />
-                </button>
+                  className={`toggle-switch ${settings.autoRefreshWatchlist ? 'active' : ''}`}
+                  onClick={() => toggle('autoRefreshWatchlist')}
+                ><span className="toggle-circle" /></button>
               </div>
             </div>
           </motion.div>
 
-          {/* 3. Risk Management Defaults */}
+          {/* ── 3. Risk Defaults ───────────────────────────────────── */}
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.3 }}
+            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.3 }}
             className="settings-card"
           >
             <div className="card-header">
               <Shield size={24} />
               <div>
-                <h2 className="card-title">3. Risk Management Defaults</h2>
-                <p className="card-description">Set your default risk parameters.</p>
+                <h2 className="card-title">3. Risk Defaults</h2>
+                <p className="card-description">Pre-fills your Trade Decision Zone automatically.</p>
               </div>
             </div>
 
             <div className="card-content">
               <div className="number-input-group">
                 <div className="number-input-item">
-                  <label htmlFor="stopLoss" className="setting-label">
-                    Default Stop Loss (%)
-                  </label>
+                  <label htmlFor="stopLoss" className="setting-label">Default Stop Loss (%)</label>
                   <div className="number-input-wrapper">
                     <input
-                      id="stopLoss"
-                      type="number"
+                      id="stopLoss" type="number" step="0.1" min="0.1" max="20"
                       value={settings.defaultStopLoss}
-                      onChange={(e) => handleChange('defaultStopLoss', parseFloat(e.target.value))}
+                      onChange={e => set('defaultStopLoss', parseFloat(e.target.value))}
                       className="number-input"
-                      step="0.1"
                     />
                     <span className="input-suffix">%</span>
                   </div>
                 </div>
-
                 <div className="number-input-item">
-                  <label htmlFor="takeProfit" className="setting-label">
-                    Default Take Profit (%)
-                  </label>
+                  <label htmlFor="takeProfit" className="setting-label">Default Take Profit (%)</label>
                   <div className="number-input-wrapper">
                     <input
-                      id="takeProfit"
-                      type="number"
+                      id="takeProfit" type="number" step="0.1" min="0.1" max="50"
                       value={settings.defaultTakeProfit}
-                      onChange={(e) => handleChange('defaultTakeProfit', parseFloat(e.target.value))}
+                      onChange={e => set('defaultTakeProfit', parseFloat(e.target.value))}
                       className="number-input"
-                      step="0.1"
-                    />
-                    <span className="input-suffix">%</span>
-                  </div>
-                </div>
-
-                <div className="number-input-item">
-                  <label htmlFor="positionSize" className="setting-label">
-                    Position Size Limit (%)
-                  </label>
-                  <div className="number-input-wrapper">
-                    <input
-                      id="positionSize"
-                      type="number"
-                      value={settings.positionSizeLimit}
-                      onChange={(e) => handleChange('positionSizeLimit', parseFloat(e.target.value))}
-                      className="number-input"
-                      step="0.1"
-                    />
-                    <span className="input-suffix">%</span>
-                  </div>
-                </div>
-
-                <div className="number-input-item">
-                  <label htmlFor="maxDrawdown" className="setting-label">
-                    Max Drawdown Tolerance (%)
-                  </label>
-                  <div className="number-input-wrapper">
-                    <input
-                      id="maxDrawdown"
-                      type="number"
-                      value={settings.maxDrawdownTolerance}
-                      onChange={(e) => handleChange('maxDrawdownTolerance', parseFloat(e.target.value))}
-                      className="number-input"
-                      step="0.1"
                     />
                     <span className="input-suffix">%</span>
                   </div>
@@ -348,123 +289,75 @@ const SettingsPage = () => {
             </div>
           </motion.div>
 
-          {/* 4. Data & Refresh Settings */}
+          {/* ── 4. Alerts ──────────────────────────────────────────── */}
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.4 }}
+            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.4 }}
             className="settings-card"
           >
             <div className="card-header">
-              <Database size={24} />
+              <Bell size={24} />
               <div>
-                <h2 className="card-title">4. Data & Refresh Settings</h2>
-                <p className="card-description">Control how often data is updated.</p>
+                <h2 className="card-title">4. Alerts</h2>
+                <p className="card-description">Manage alert preferences (in-app delivery).</p>
               </div>
             </div>
 
             <div className="card-content">
-              {/* Dropdowns */}
-              <div className="select-group">
-                <div className="select-item">
-                  <label htmlFor="realtimeRefresh" className="setting-label">
-                    Real-time Data Refresh Rate
-                  </label>
-                  <select
-                    id="realtimeRefresh"
-                    value={settings.realtimeRefreshRate}
-                    onChange={(e) => handleChange('realtimeRefreshRate', e.target.value)}
-                    className="select-input"
-                  >
-                    {refreshRateOptions.map((option) => (
-                      <option key={option} value={option}>
-                        {option}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="select-item">
-                  <label htmlFor="quoteUpdate" className="setting-label">
-                    Quote Update Frequency
-                  </label>
-                  <select
-                    id="quoteUpdate"
-                    value={settings.quoteUpdateFrequency}
-                    onChange={(e) => handleChange('quoteUpdateFrequency', e.target.value)}
-                    className="select-input"
-                  >
-                    {updateFrequencyOptions.map((option) => (
-                      <option key={option} value={option}>
-                        {option}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* Toggle */}
               <div className="toggle-item">
-                <label>Auto-refresh Watchlist</label>
+                <label>Price Alerts</label>
                 <button
-                  className={`toggle-switch ${settings.autoRefreshWatchlist ? 'active' : ''}`}
-                  onClick={() => handleToggle('autoRefreshWatchlist')}
-                >
-                  <span className="toggle-circle" />
-                </button>
+                  className={`toggle-switch ${settings.priceAlerts ? 'active' : ''}`}
+                  onClick={() => toggle('priceAlerts')}
+                ><span className="toggle-circle" /></button>
               </div>
-
-              {/* Refresh Interval */}
-              <div className="select-item">
-                <label htmlFor="refreshInterval" className="setting-label">
-                  Refresh Interval
-                </label>
-                <select
-                  id="refreshInterval"
-                  value={settings.refreshInterval}
-                  onChange={(e) => handleChange('refreshInterval', e.target.value)}
-                  className="select-input"
-                >
-                  {refreshIntervalOptions.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <p style={{ fontSize: '11px', color: '#6b7280', marginTop: '8px' }}>
+                Triggers in-app notifications when a watchlist stock crosses a price threshold.
+              </p>
             </div>
           </motion.div>
+
         </div>
 
-        {/* Tip Section */}
+        {/* Save Bar */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.5 }}
-          className="tip-section"
+          initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.5 }}
         >
-          <Info size={20} />
-          <div>
-            <p className="tip-text">
-              Your settings are saved automatically and applied across the dashboard.
-            </p>
+          <div className="tip-section" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <Info size={20} />
+              <div>
+                <p className="tip-text">Changes to Chart &amp; Display take effect immediately after saving.</p>
+                <div className="save-status">
+                  {isSaving ? (
+                    <span className="saving-indicator"><span className="spinner" /> Saving…</span>
+                  ) : lastSaved ? (
+                    <span className="saved-indicator"><CheckCircle2 size={16} /> Saved at {lastSaved.toLocaleTimeString()}</span>
+                  ) : isDirty ? (
+                    <span className="waiting-indicator" style={{ color: '#f59e0b' }}>Unsaved changes</span>
+                  ) : (
+                    <span className="waiting-indicator">Ready</span>
+                  )}
+                </div>
+              </div>
+            </div>
+            <button
+              onClick={handleSave}
+              disabled={!isDirty || isSaving}
+              className={`px-6 py-2 rounded-lg font-bold transition-all ${
+                isDirty && !isSaving
+                  ? 'bg-[#10706B] text-white hover:bg-[#0D5C58]'
+                  : 'bg-gray-700 text-gray-400 cursor-not-allowed'
+              }`}
+            >
+              Save Settings
+            </button>
           </div>
         </motion.div>
-
-        {/* Save Button */}
-        <motion.button
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={handleSave}
-          className="save-btn"
-        >
-          <Save size={18} />
-          {saved ? 'Saved!' : 'Save Settings'}
-        </motion.button>
       </div>
     </div>
   );
 };
 
 export default SettingsPage;
-

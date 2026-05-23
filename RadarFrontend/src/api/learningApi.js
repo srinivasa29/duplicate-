@@ -1,8 +1,15 @@
 import api from './api';
 
-export const fetchCourses = async () => {
+// Returns the localStorage key scoped by mode so trader/investor progress is separate
+export const getProgressKey = (courseId, mode = '') => {
+    const prefix = mode ? `${mode}_` : '';
+    return `radar_academy_progress_${prefix}${courseId}`;
+};
+
+export const fetchCourses = async (audience = '') => {
     try {
-        const res = await api.get('/learning');
+        const url = audience ? `/learning?audience=${audience}` : '/learning';
+        const res = await api.get(url);
         return Array.isArray(res.data?.data) ? res.data.data : Array.isArray(res.data) ? res.data : [];
     } catch (err) {
         console.error('Failed to fetch courses:', err);

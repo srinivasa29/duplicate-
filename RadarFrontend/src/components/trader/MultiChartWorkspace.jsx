@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
+import ReactDOM from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import api from '../../api/api';
 import {
@@ -99,6 +100,13 @@ const MultiChartWorkspace = () => {
   const toggleFullscreen = useCallback((chartId) => {
     setFullscreenChart(fullscreenChart === chartId ? null : chartId);
   }, [fullscreenChart]);
+
+  // Close fullscreen on Escape key
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') setFullscreenChart(null); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   const saveWorkspace = useCallback(() => {
     if (!workspaceName.trim()) return;
@@ -295,84 +303,179 @@ const MultiChartWorkspace = () => {
         </div>
       </div>
 
-      {}
-      <div className="flex-1 p-4 overflow-auto">
-        {fullscreenChart ? (
-          <div className="h-full">
-            <div className="h-full bg-slate-900 rounded-2xl overflow-hidden relative">
-              <button
-                onClick={() => setFullscreenChart(null)}
-                className="absolute top-4 right-4 z-50 p-2 rounded-lg bg-slate-800/80 text-white hover:bg-slate-700 backdrop-blur-sm"
-              >
-                <Minimize2 className="w-5 h-5" />
-              </button>
-              <AdvancedTradingChart
-                symbol={displayCharts.find(c => c.id === fullscreenChart)?.symbol}
-                initialTimeframe={displayCharts.find(c => c.id === fullscreenChart)?.timeframe}
-                height={window.innerHeight - 150}
-              />
-            </div>
-          </div>
-        ) : (
-          <div 
-            className="grid gap-4 h-full"
-            style={{
-              gridTemplateRows: `repeat(${currentLayout.rows}, 1fr)`,
-              gridTemplateColumns: `repeat(${currentLayout.cols}, 1fr)`,
-            }}
-          >
-            {displayCharts.slice(0, totalCharts).map((chart, index) => (
-              <motion.div
-                key={chart.id}
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: index * 0.05 }}
-                className="relative bg-slate-900 rounded-2xl overflow-hidden border border-slate-800 group"
-              >
-                {}
-                <div className="absolute top-2 right-2 z-10 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+      {/* ── Chart expand modal — centered in viewport, portal on body ── */}
+      {fullscreenChart && (() => {
+        const chart = displayCharts.find(c => c.id === fullscreenChart);
+        const MODAL_W = Math.min(window.innerWidth  * 0.92, 1600);
+        const MODAL_H = Math.min(window.innerHeight * 0.88, 900);
+        const HEADER_H = 52;
+        const CHART_H  = MODAL_H - HEADER_H;
+
+        return ReactDOM.createPortal(
+          <>
+            {/* ── Backdrop — click to close ── */}
+            <div
+              onClick={() => setFullscreenChart(null)}
+              style={{
+                position: 'fixed',
+                inset: 0,
+                zIndex: 2147483646,
+                background: 'rgba(0,0,0,0.78)',
+                backdropFilter: 'blur(4px)',
+                WebkitBackdropFilter: 'blur(4px)',
+              }}
+            />
+
+            {/* ── Centered modal card ── */}
+            <div
+              style={{
+                position: 'fixed',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                zIndex: 2147483647,
+                width:  MODAL_W,
+                height: MODAL_H,
+                background: '#0d1829',
+                borderRadius: 16,
+                border: '1px solid rgba(255,255,255,0.10)',
+                boxShadow: '0 32px 80px rgba(0,0,0,0.7), 0 0 0 1px rgba(34,211,238,0.08)',
+                display: 'flex',
+                flexDirection: 'column',
+                overflow: 'hidden',
+              }}
+            >
+              {/* Modal header */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '0 20px',
+                background: '#0f172a',
+                borderBottom: '1px solid rgba(255,255,255,0.07)',
+                flexShrink: 0,
+                height: HEADER_H,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <Monitor style={{ width: 15, height: 15, color: '#22d3ee' }} />
+                  <span style={{
+                    color: '#f1f5f9', fontWeight: 800, fontSize: 14,
+                    letterSpacing: '0.1em', textTransform: 'uppercase',
+                  }}>
+                    {chart?.symbol}
+                  </span>
+                  <span style={{
+                    padding: '2px 8px', borderRadius: 4,
+                    background: 'rgba(34,211,238,0.10)',
+                    border: '1px solid rgba(34,211,238,0.20)',
+                    color: '#22d3ee', fontSize: 9, fontWeight: 700,
+                    letterSpacing: '0.12em', textTransform: 'uppercase',
+                  }}>EXPANDED</span>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 11, color: '#475569' }}>Press Esc to close</span>
                   <button
-                    onClick={() => toggleFullscreen(chart.id)}
-                    className="p-2 rounded-lg bg-slate-800/80 text-slate-300 hover:bg-slate-700 hover:text-white backdrop-blur-sm transition-all"
-                    title="Fullscreen"
+                    onClick={() => setFullscreenChart(null)}
+                    style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      width: 30, height: 30, borderRadius: 8,
+                      background: 'rgba(255,255,255,0.05)',
+                      border: '1px solid rgba(255,255,255,0.10)',
+                      color: '#94a3b8', cursor: 'pointer',
+                      transition: 'all 0.15s',
+                    }}
+                    onMouseEnter={e => {
+                      e.currentTarget.style.background = 'rgba(239,68,68,0.20)';
+                      e.currentTarget.style.color = '#f87171';
+                      e.currentTarget.style.borderColor = 'rgba(239,68,68,0.35)';
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
+                      e.currentTarget.style.color = '#94a3b8';
+                      e.currentTarget.style.borderColor = 'rgba(255,255,255,0.10)';
+                    }}
                   >
-                    <Maximize2 className="w-4 h-4" />
+                    <X style={{ width: 14, height: 14 }} />
                   </button>
-                  {totalCharts > 1 && (
-                    <button
-                      onClick={() => removeChart(chart.id)}
-                      className="p-2 rounded-lg bg-slate-800/80 text-slate-300 hover:bg-rose-500 hover:text-white backdrop-blur-sm transition-all"
-                      title="Remove"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  )}
                 </div>
+              </div>
 
-                {}
-                <div className="absolute top-2 left-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <select
-                    value={chart.symbol}
-                    onChange={(e) => updateChart(chart.id, { symbol: e.target.value })}
-                    className="px-3 py-1.5 bg-slate-800/80 backdrop-blur-sm border border-slate-700 rounded-lg text-white text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-cyan-500"
-                  >
-                    {availableSymbols.map(symbol => (
-                      <option key={symbol} value={symbol}>{symbol}</option>
-                    ))}
-                  </select>
-                </div>
-
+              {/* Chart area */}
+              <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
                 <AdvancedTradingChart
-                  symbol={chart.symbol}
-                  initialTimeframe={chart.timeframe}
-                  height={300}
-                  showHeader={false}
+                  symbol={chart?.symbol}
+                  initialTimeframe={chart?.timeframe}
+                  height={CHART_H}
                 />
-              </motion.div>
-            ))}
-          </div>
-        )}
+              </div>
+            </div>
+          </>,
+          document.body
+        );
+      })()}
+
+      {/* ── Normal grid view ── */}
+      <div className="flex-1 p-4 overflow-auto">
+        <div
+          className="grid gap-4 h-full"
+          style={{
+            gridTemplateRows: `repeat(${currentLayout.rows}, 1fr)`,
+            gridTemplateColumns: `repeat(${currentLayout.cols}, 1fr)`,
+          }}
+        >
+          {displayCharts.slice(0, totalCharts).map((chart, index) => (
+            <motion.div
+              key={chart.id}
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: index * 0.05 }}
+              className="relative bg-slate-900 rounded-2xl overflow-hidden border border-slate-800 group"
+            >
+              {}
+              <div className="absolute top-2 right-2 z-10 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button
+                  onClick={() => toggleFullscreen(chart.id)}
+                  className="p-2 rounded-lg bg-slate-800/80 text-slate-300 hover:bg-slate-700 hover:text-white backdrop-blur-sm transition-all"
+                  title="Fullscreen"
+                >
+                  <Maximize2 className="w-4 h-4" />
+                </button>
+                {totalCharts > 1 && (
+                  <button
+                    onClick={() => removeChart(chart.id)}
+                    className="p-2 rounded-lg bg-slate-800/80 text-slate-300 hover:bg-rose-500 hover:text-white backdrop-blur-sm transition-all"
+                    title="Remove"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+
+              {}
+              <div className="absolute top-2 left-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+                <select
+                  value={chart.symbol}
+                  onChange={(e) => updateChart(chart.id, { symbol: e.target.value })}
+                  className="px-3 py-1.5 bg-slate-800/80 backdrop-blur-sm border border-slate-700 rounded-lg text-white text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                >
+                  {availableSymbols.map(symbol => (
+                    <option key={symbol} value={symbol}>{symbol}</option>
+                  ))}
+                </select>
+              </div>
+
+              <AdvancedTradingChart
+                symbol={chart.symbol}
+                initialTimeframe={chart.timeframe}
+                height={300}
+                showHeader={false}
+              />
+            </motion.div>
+          ))}
+        </div>
       </div>
+
     </div>
   );
 };

@@ -10,6 +10,7 @@ import ScannerControls from "../components/research/ScannerControls";
 import SearchBar from "../components/research/SearchBar";
 import ActionPanel from "../components/research/ActionPanel";
 import api from "../api/api";
+import { useMarketStatus } from "../hooks/useMarketStatus";
 
 const TABS = ["Market Opportunities", "Momentum", "Breakout", "Pullback", "Fakeout"];
 const SECTORS = ["All", "IT", "Banking", "Auto", "Pharma", "FMCG", "Energy"];
@@ -61,6 +62,7 @@ const applyFilters = ({ stocks, filters, activeTab, searchText }) => {
 
 
 const MarketResearchDashboard = () => {
+  const { isOpen: isMarketOpen, isCrypto } = useMarketStatus('Equity'); // Default to Equity for the dashboard
   const [baseStocks, setBaseStocks] = useState([]);
   const [filteredStocks, setFilteredStocks] = useState([]);
   const [expandedStockId, setExpandedStockId] = useState(null);
@@ -182,9 +184,9 @@ const MarketResearchDashboard = () => {
         <header className="mb-6 rounded-2xl border border-white/10 bg-[linear-gradient(145deg,rgba(8,15,28,0.84),rgba(18,30,55,0.7))] p-4 backdrop-blur-md shadow-[0_14px_36px_rgba(0,0,0,0.28)] md:p-6">
           <div className="flex flex-wrap items-start justify-between gap-6">
             <div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-emerald-300/25 bg-emerald-400/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-100">
-                <Activity size={12} />
-                MARKET OPEN
+              <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] ${isMarketOpen ? 'border-emerald-300/25 bg-emerald-400/10 text-emerald-100' : 'border-slate-500/25 bg-slate-500/10 text-slate-300'}`}>
+                {isMarketOpen ? <Activity size={12} /> : <div className="h-1.5 w-1.5 rounded-full bg-slate-500" />}
+                {isMarketOpen ? 'MARKET OPEN' : 'MARKET CLOSED'}
               </div>
               <h1 className="mt-2 text-2xl font-black tracking-tight text-white md:text-3xl">Market Research Screener</h1>
               <p className="mt-1 text-sm text-slate-300">Live market intelligence — real-time signals from backend.</p>

@@ -9,7 +9,6 @@ import {
     Banknote, 
     ShieldCheck, 
     ChevronRight,
-    ChevronLeft,
     ChevronDown,
     Search,
     SlidersHorizontal,
@@ -23,17 +22,15 @@ import {
     Trash2,
     Download
 } from 'lucide-react';
-import { AreaChart, Area, ResponsiveContainer, YAxis } from 'recharts';
+import { AreaChart, Area, ResponsiveContainer } from 'recharts';
 import { runScreenerScan, createCustomFilter, getCustomFilters, deleteCustomFilter } from '../../api/screenerApi';
 import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
-import api, { saveToDefaultWatchlist } from '../../api/api';
 
 const MOCK_READY_MADE = [
-    { id: 'div', title: 'Dividend Giants', desc: 'Top yield names with stable cash flows and 5Y growth.', icon: Banknote, color: 'text-emerald-600', bg: 'bg-emerald-50', filters: { yield: '> 1%', mcap: 'Large' } },
-    { id: 'it', title: 'IT Breakouts', desc: 'Volume leaders in tech with RSI momentum signals.', icon: Zap, color: 'text-blue-600', bg: 'bg-blue-50', filters: { sector: 'IT' } },
-    { id: 'value', title: 'Deep Value Gems', desc: 'Lowest P/E stocks with positive earnings surprises.', icon: ShieldCheck, color: 'text-purple-600', bg: 'bg-purple-50', filters: { pe: 'Low (<15)' } },
-    { id: 'bluechip', title: 'Bluechip Titans', desc: 'Most reliable large cap institutions with steady growth.', icon: Star, color: 'text-amber-600', bg: 'bg-amber-50', filters: { mcap: 'Large' } }
+    { id: 'div', title: 'Dividend Giants', desc: 'Top yield names with stable cash flows and 5Y growth.', icon: Banknote, color: 'text-emerald-600', bg: 'bg-emerald-50', filters: { yield: '> 3%', mcap: 'Large' } },
+    { id: 'it', title: 'IT Breakouts', desc: 'Volume leaders in tech with RSI momentum signals.', icon: Zap, color: 'text-blue-600', bg: 'bg-blue-50', filters: { sector: 'IT', volume: 'High' } },
+    { id: 'value', title: 'Deep Value Gems', desc: 'Lowest P/E stocks with positive earnings surprises.', icon: ShieldCheck, color: 'text-purple-600', bg: 'bg-purple-50', filters: { pe: 'Low (<15)', roe: '> 15%' } }
 ];
 
 const MOCK_FALLBACK_RESULTS = [
@@ -80,6 +77,52 @@ const allFilters = [
 ];
 
 
+// ── Translate human-readable UI filter values → backend numeric format ──────
+const translateFilters = (uiFilters) => {
+    const out = {};
+
+    // Change %
+    const changeMap = { '> 0%': { minChange: 0 }, '> 2%': { minChange: 2 }, '> 5%': { minChange: 5 }, '< 0%': { maxChange: -0.01 } };
+    if (uiFilters.change && changeMap[uiFilters.change]) Object.assign(out, changeMap[uiFilters.change]);
+
+    // P/E
+    const peMap = { 'Low (<15)': { maxPe: 15 }, 'Medium': { minPe: 15, maxPe: 30 }, 'High': { minPe: 30 } };
+    if (uiFilters.pe && peMap[uiFilters.pe]) Object.assign(out, peMap[uiFilters.pe]);
+
+    // Price
+    const priceMap = { '< ₹500': { maxPrice: 500 }, '₹500 - ₹2k': { minPrice: 500, maxPrice: 2000 }, '> ₹2k': { minPrice: 2000 } };
+    if (uiFilters.price && priceMap[uiFilters.price]) Object.assign(out, priceMap[uiFilters.price]);
+
+    // Market Cap (in INR)
+    const mcapMap = { 'Large': { minMarketCap: 200_000_000_000 }, 'Mid': { minMarketCap: 20_000_000_000, maxMarketCap: 200_000_000_000 }, 'Small': { minMarketCap: 1_000_000_000, maxMarketCap: 20_000_000_000 }, 'Micro': { maxMarketCap: 1_000_000_000 } };
+    if (uiFilters.mcap && mcapMap[uiFilters.mcap]) Object.assign(out, mcapMap[uiFilters.mcap]);
+
+    // Sector
+    if (uiFilters.sector && uiFilters.sector !== 'All') out.sectors = [uiFilters.sector];
+
+    // ROE (minChange uses score as proxy here; ROE isn't in backend directly)
+    const roeMap = { '> 10%': { minScore: 50 }, '> 15%': { minScore: 60 }, '> 20%': { minScore: 70 } };
+    if (uiFilters.roe && roeMap[uiFilters.roe]) Object.assign(out, roeMap[uiFilters.roe]);
+
+    // RSI
+    const rsiMap = { 'Oversold (<30)': { maxRsi: 30 }, 'Neutral': { minRsi: 40, maxRsi: 60 }, 'Overbought (>70)': { minRsi: 70 } };
+    if (uiFilters.rsi && rsiMap[uiFilters.rsi]) Object.assign(out, rsiMap[uiFilters.rsi]);
+
+    // Strategy-level quick signals (already in numeric form)
+    if (uiFilters.minChange !== undefined) out.minChange = uiFilters.minChange;
+    if (uiFilters.maxChange !== undefined) out.maxChange = uiFilters.maxChange;
+    if (uiFilters.minRsi !== undefined) out.minRsi = uiFilters.minRsi;
+    if (uiFilters.maxRsi !== undefined) out.maxRsi = uiFilters.maxRsi;
+    if (uiFilters.minScore !== undefined) out.minScore = uiFilters.minScore;
+    if (uiFilters.volume) {
+        const volMap = { 'High': 'high', 'Very High': 'very_high', 'Extreme': 'very_high', 'Low': 'low', 'Normal': 'normal' };
+        out.volumeStatus = volMap[uiFilters.volume] || uiFilters.volume.toLowerCase();
+    }
+
+    return out;
+};
+
+
 const Screeners = ({ isHero = false, initialFilters = {} }) => {
     const [activeFilters, setActiveFilters] = useState(initialFilters);
     const [visibleFilters, setVisibleFilters] = useState(['mcap', 'price', 'change', 'sector', 'roe', 'pe']);
@@ -92,69 +135,12 @@ const Screeners = ({ isHero = false, initialFilters = {} }) => {
         const cached = localStorage.getItem('radar_screener_results');
         return cached ? JSON.parse(cached) : MOCK_FALLBACK_RESULTS;
     });
-    const hasActiveFilters = Object.keys(activeFilters || {}).some(k => 
-        activeFilters[k] !== undefined && 
-        activeFilters[k] !== null && 
-        activeFilters[k] !== '' && 
-        activeFilters[k] !== 'Any'
-    );
     const [readyMade, setReadyMade] = useState(MOCK_READY_MADE);
     const [isLoading, setIsLoading] = useState(false);
-    const [currentPage, setCurrentPage] = useState(1);
-    const [showMoreTrending, setShowMoreTrending] = useState(false);
-    const ITEMS_PER_PAGE = 10;
     const navigate = useNavigate();
     const userMode = localStorage.getItem('mode') || 'INVESTOR';
 
-    React.useEffect(() => {
-        setCurrentPage(1);
-    }, [activeFilters, searchTerm]);
-
-    const [watchlist, setWatchlist] = useState([]);
-    const [watchlistId, setWatchlistId] = useState(null);
-
-    React.useEffect(() => {
-        const checkWatchlist = async () => {
-            try {
-                const res = await api.get('/watchlist');
-                const lists = res.data || [];
-                if (lists.length > 0) {
-                    setWatchlistId(lists[0]._id);
-                    const syms = (lists[0].items || []).map(s => String(s?.symbol || s).toUpperCase().replace(/\.(NS|BO)$/i, ''));
-                    setWatchlist(syms);
-                }
-            } catch (_) {}
-        };
-        checkWatchlist();
-
-        window.addEventListener('watchlist_updated', checkWatchlist);
-        return () => window.removeEventListener('watchlist_updated', checkWatchlist);
-    }, []);
-
-    const toggleWatchlist = async (e, stockId) => {
-        e.stopPropagation();
-        const sym = (stockId || '').split('.')[0].toUpperCase();
-        const isWl = watchlist.includes(sym);
-        try {
-            if (isWl) {
-                if (watchlistId) {
-                    await api.delete(`/watchlist/${watchlistId}/remove/${encodeURIComponent(stockId)}`);
-                }
-                setWatchlist(prev => prev.filter(s => s !== sym));
-            } else {
-                await saveToDefaultWatchlist(stockId);
-                setWatchlist(prev => [...prev, sym]);
-                if (!watchlistId) {
-                    const res = await api.get('/watchlist');
-                    if (res.data?.length > 0) setWatchlistId(res.data[0]._id);
-                }
-            }
-            window.dispatchEvent(new Event('watchlist_updated'));
-        } catch (err) {
-            console.error("Watchlist toggle failed", err);
-        }
-    };
-
+    // ── Custom Filters state ──────────────────────────────────
     const [myFilters, setMyFilters] = useState([]);
     const [newFilterName, setNewFilterName] = useState('');
     const [newFilterOptions, setNewFilterOptions] = useState('');
@@ -162,78 +148,19 @@ const Screeners = ({ isHero = false, initialFilters = {} }) => {
     const [filterSaving, setFilterSaving] = useState(false);
     const [filterError, setFilterError] = useState('');
 
-    const [showSaveScreenerModal, setShowSaveScreenerModal] = useState(false);
-    const [newScreenerName, setNewScreenerName] = useState('');
-    const [newScreenerPurpose, setNewScreenerPurpose] = useState('');
-    const [savedScreeners, setSavedScreeners] = useState(() => {
-        const cached = localStorage.getItem('radar_saved_screeners');
-        return cached ? JSON.parse(cached) : [];
-    });
-
-    const handleSaveScreenerClick = () => {
-        if (!hasActiveFilters) {
-            alert('No filters selected. Please select at least one filter before saving.');
-            return;
-        }
-        setShowSaveScreenerModal(true);
-    };
-
-    const handleConfirmSaveScreener = () => {
-        if (!newScreenerName.trim() || !newScreenerPurpose.trim()) {
-            alert('Please provide both name and purpose.');
-            return;
-        }
-        const newScreener = {
-            id: Date.now().toString(),
-            name: newScreenerName.trim(),
-            purpose: newScreenerPurpose.trim(),
-            filters: { ...activeFilters }
-        };
-        const updatedScreeners = [newScreener, ...savedScreeners];
-        setSavedScreeners(updatedScreeners);
-        localStorage.setItem('radar_saved_screeners', JSON.stringify(updatedScreeners));
-        setShowSaveScreenerModal(false);
-        setNewScreenerName('');
-        setNewScreenerPurpose('');
-    };
-
-    const handleDeleteSavedScreener = (e, id) => {
-        e.stopPropagation();
-        const updatedScreeners = savedScreeners.filter(s => s.id !== id);
-        setSavedScreeners(updatedScreeners);
-        localStorage.setItem('radar_saved_screeners', JSON.stringify(updatedScreeners));
-    };
-
-    const handleLoadSavedScreener = (screener) => {
-        if (activeFilters.preset === screener.id) {
-            setActiveFilters({});
-        } else {
-            setActiveFilters({ ...screener.filters, preset: screener.id });
-        }
-    };
-
     const handleFilterChange = (id, value) => {
-        if (activeFilters[id] === value || value === 'Any') {
-            const newFilters = { ...activeFilters };
-            delete newFilters[id];
-            setActiveFilters(newFilters);
-        } else {
-            setActiveFilters(prev => ({ ...prev, [id]: value }));
-        }
+        setActiveFilters(prev => ({ ...prev, [id]: value }));
         setOpenFilter(null);
         setActiveStrategy(null);
     };
 
     const handleStrategySelect = (strat) => {
-        if (activeStrategy === strat.id) {
-            setActiveStrategy(null);
-            setShowSignalModal(null);
-            setActiveFilters({});
-        } else {
-            setShowSignalModal(strat);
-            setActiveStrategy(strat.id);
-            setActiveFilters({ ...strat.filters });
-        }
+        setShowSignalModal(strat);
+        setActiveStrategy(strat.id);
+        const newFilters = { ...strat.filters };
+        setActiveFilters(newFilters);
+        // Immediately trigger a scan with the strategy filters
+        setTimeout(() => runScanWithFilters(newFilters), 0);
     };
 
     const addMoreFilter = (id) => {
@@ -243,11 +170,13 @@ const Screeners = ({ isHero = false, initialFilters = {} }) => {
         setOpenFilter(null);
     };
 
+    // ── Custom filter helpers ─────────────────────────────────
     const loadMyFilters = async () => {
         try {
             const res = await getCustomFilters();
             const filters = res?.data || [];
             setMyFilters(filters);
+            // Surface them as additional filter chips
             filters.forEach(f => {
                 if (!allFilters.find(af => af.id === f._id)) {
                     allFilters.push({
@@ -259,7 +188,9 @@ const Screeners = ({ isHero = false, initialFilters = {} }) => {
                     });
                 }
             });
-        } catch (_) {}
+        } catch (_) {
+            // silently ignore — user might not be logged in yet
+        }
     };
 
     const handleCreateFilter = async () => {
@@ -277,6 +208,7 @@ const Screeners = ({ isHero = false, initialFilters = {} }) => {
             });
             const created = res.data;
             setMyFilters(prev => [created, ...prev]);
+            // Add to live filter chips
             allFilters.push({
                 id: created._id,
                 label: created.name,
@@ -285,6 +217,7 @@ const Screeners = ({ isHero = false, initialFilters = {} }) => {
                 isCustom: true,
             });
             setVisibleFilters(prev => [...prev, created._id]);
+            // Reset
             setNewFilterName('');
             setNewFilterOptions('');
             setNewFilterQuery('SELECT * FROM market WHERE x > y');
@@ -307,103 +240,54 @@ const Screeners = ({ isHero = false, initialFilters = {} }) => {
     const filteredResults = results.filter(stock => {
         const stockId = stock.id || '';
         if (searchTerm && !stockId.toLowerCase().includes(searchTerm.toLowerCase())) return false;
+        if (activeFilters.mcap && activeFilters.mcap !== 'Any') {
+            if (activeFilters.mcap === 'Large' && !stock.mcap?.includes('T')) return false;
+        }
+        if (activeFilters.sector && activeFilters.sector !== 'All') {
+            if (!stock.sector?.includes(activeFilters.sector)) return false;
+        }
         return true;
     });
 
-    const runScan = async () => {
+    const runScanWithFilters = async (filtersToUse) => {
         try {
             setIsLoading(true);
-            const apiFilters = {};
-            
-            if (activeFilters.pe && activeFilters.pe !== 'Any') {
-                if (activeFilters.pe.includes('Low')) apiFilters.maxPe = 15;
-                if (activeFilters.pe.includes('Medium')) { apiFilters.minPe = 15; apiFilters.maxPe = 30; }
-                if (activeFilters.pe.includes('High')) apiFilters.minPe = 30;
-            }
-            if (activeFilters.roe && activeFilters.roe !== 'Any') {
-                if (activeFilters.roe.includes('> 10%')) apiFilters.minRoe = 10;
-                if (activeFilters.roe.includes('> 15%')) apiFilters.minRoe = 15;
-                if (activeFilters.roe.includes('> 20%')) apiFilters.minRoe = 20;
-            }
-            if (activeFilters.change && activeFilters.change !== 'Any') {
-                if (activeFilters.change.includes('> 0%')) apiFilters.minChange = 0;
-                if (activeFilters.change.includes('> 2%')) apiFilters.minChange = 2;
-                if (activeFilters.change.includes('> 3%')) apiFilters.minChange = 3;
-                if (activeFilters.change.includes('> 5%')) apiFilters.minChange = 5;
-                if (activeFilters.change.includes('< 0%')) apiFilters.maxChange = 0;
-                if (activeFilters.change.includes('< -3%')) apiFilters.maxChange = -3;
-            }
-            if (activeFilters.price && activeFilters.price !== 'Any') {
-                if (activeFilters.price.includes('< ₹500')) apiFilters.maxPrice = 500;
-                if (activeFilters.price.includes('₹500 - ₹2k')) { apiFilters.minPrice = 500; apiFilters.maxPrice = 2000; }
-                if (activeFilters.price.includes('> ₹2k')) apiFilters.minPrice = 2000;
-            }
-            if (activeFilters.sector && activeFilters.sector !== 'All') {
-                const sectorMap = {
-                    'IT': ['Information Technology', 'Technology', 'IT'],
-                    'Finance': ['Financial Services', 'Finance'],
-                    'FMCG': ['Consumer Defensive', 'FMCG'],
-                    'Auto': ['Consumer Cyclical', 'Auto'],
-                    'Energy': ['Energy', 'Utilities'],
-                    'Healthcare': ['Healthcare']
-                };
-                apiFilters.sectors = sectorMap[activeFilters.sector] || [activeFilters.sector];
-            }
-            if (activeFilters.rsi && activeFilters.rsi !== 'Any') {
-                if (activeFilters.rsi.includes('Oversold')) apiFilters.maxRsi = 30;
-                if (activeFilters.rsi.includes('Overbought')) apiFilters.minRsi = 70;
-            }
-            if (activeFilters.yield && activeFilters.yield !== 'Any') {
-                if (activeFilters.yield.includes('> 1%')) apiFilters.minYield = 1;
-                if (activeFilters.yield.includes('> 2%')) apiFilters.minYield = 2;
-                if (activeFilters.yield.includes('> 3%')) apiFilters.minYield = 3;
-            }
-            if (activeFilters.mcap && activeFilters.mcap !== 'Any') {
-                if (activeFilters.mcap === 'Large') apiFilters.minMarketCap = 500000000000;
-                if (activeFilters.mcap === 'Mid') { apiFilters.minMarketCap = 100000000000; apiFilters.maxMarketCap = 500000000000; }
-                if (activeFilters.mcap === 'Small') apiFilters.maxMarketCap = 100000000000;
-            }
-            if (activeFilters.volume && activeFilters.volume !== 'Any') {
-                apiFilters.volumeStatus = activeFilters.volume;
-            }
+            const backendFilters = translateFilters(filtersToUse || activeFilters);
+            const response = await runScreenerScan({ filters: backendFilters });
+            const data = response?.data?.results || [];
 
-            const payload = { filters: apiFilters };
-            if (activeFilters.preset) payload.preset = activeFilters.preset;
-
-            const res = await runScreenerScan(payload);
-            const resultsData = res?.data?.results || res?.data || res?.results || [];
-            
-            if (Array.isArray(resultsData) && resultsData.length > 0) {
-                const mappedResults = resultsData.map(stock => ({
+            if (data && Array.isArray(data)) {
+                const formatted = data.map(stock => ({
                     id: stock.symbol,
                     price: `₹${stock.price}`,
                     change: `${stock.change > 0 ? '+' : ''}${stock.change}%`,
                     isPositive: stock.change >= 0,
-                    sector: stock.sector || 'Unknown',
-                    mcap: stock.marketCap || 'N/A',
-                    pe: stock.pe || 'N/A',
-                    roe: stock.roe || 'N/A',
-                    yield: stock.dividendYield || 'N/A',
-                    confidence: stock.score || 50,
-                    why: stock.bias === 'bullish' ? 'Strong momentum and positive signals.' : stock.bias === 'bearish' ? 'Weakness in current trend.' : 'Neutral technical indicators.',
-                    tags: stock.bias ? [stock.bias.toUpperCase()] : ['NEUTRAL'],
-                    trend: stock.sparklineData && stock.sparklineData.length > 0 ? stock.sparklineData.map(d => d.value) : Array.from({ length: 15 }, (_, i) => stock.price * (1 + (Math.random() * 0.04 - 0.02)))
+                    sector: stock.sector,
+                    mcap: stock.marketCap || '-',
+                    pe: stock.pe != null ? stock.pe : '-',
+                    roe: '-',
+                    yield: '-',
+                    confidence: stock.confidence,
+                    why: stock.why,
+                    tags: stock.tags,
+                    trend: [stock.price * 0.98, stock.price * 0.99, stock.price, stock.price * 1.01, stock.price]
                 }));
-                setResults(mappedResults);
-                localStorage.setItem('radar_screener_results', JSON.stringify(mappedResults));
-            } else {
-                setResults([]);
+                setResults(formatted);
+                localStorage.setItem('radar_screener_results', JSON.stringify(formatted));
             }
         } catch (err) {
-            console.error("Screener scan failed:", err);
+            console.error('Screener scan failed:', err);
         } finally {
             setIsLoading(false);
         }
     };
 
+    const runScan = () => runScanWithFilters(activeFilters);
+
     const exportToExcel = () => {
         if (!filteredResults.length) return;
 
+        // Build rows
         const rows = filteredResults.map(s => ({
             'Ticker':       (s.id || '').split('.')[0],
             'Sector':       s.sector        || '—',
@@ -420,6 +304,7 @@ const Screeners = ({ isHero = false, initialFilters = {} }) => {
 
         const ws = XLSX.utils.json_to_sheet(rows);
 
+        // Column widths
         ws['!cols'] = [
             { wch: 14 }, { wch: 14 }, { wch: 12 }, { wch: 10 },
             { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 10 },
@@ -434,12 +319,10 @@ const Screeners = ({ isHero = false, initialFilters = {} }) => {
     };
 
     React.useEffect(() => {
-        if (Object.keys(activeFilters).length > 0) {
-            runScan();
-        } else if (results.length === 0 || results === MOCK_FALLBACK_RESULTS) {
-            runScan();
-        }
-    }, [activeFilters]);
+        // Auto-scan on mount to populate results
+        runScan();
+    }, []);
+
 
     React.useEffect(() => {
         loadMyFilters();
@@ -518,6 +401,7 @@ const Screeners = ({ isHero = false, initialFilters = {} }) => {
         <div className={`w-full ${isHero ? '' : 'min-h-screen py-8 px-4 md:px-10 bg-[#f8fafc]/50'}`}>
             <div className={`mx-auto fade-in ${isHero ? '' : 'max-w-[1600px]'}`}>
                 
+                {}
                 <div className="mb-6 flex items-center justify-between px-2">
                     <div className="flex items-center gap-3">
                         <div className="bg-blue-600 p-2 rounded-lg text-white shadow-lg">
@@ -527,21 +411,27 @@ const Screeners = ({ isHero = false, initialFilters = {} }) => {
                             <h1 className="text-2xl font-black text-slate-800">Smart Market Screener</h1>
                             <p className="text-[12px] font-bold text-slate-500 flex items-center gap-1.5 uppercase tracking-wider">
                                 <ShieldCheck size={14} className="text-blue-500" />
-                                ⚡ Tailored for you: {userMode === 'TRADER' ? 'Active Trader' : 'Long-term Investor'}
+                                <Zap size={13} className="text-amber-500 fill-amber-400" />
+                                Tailored for you: {userMode === 'TRADER' ? 'Active Trader' : 'Long-term Investor'}
                             </p>
                         </div>
                     </div>
                     <div className="flex gap-3">
                         <button 
-                            className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-5 py-2.5 rounded-full flex items-center gap-2 text-sm font-bold transition-all hover:scale-105 shadow-lg shadow-blue-200"
-                            onClick={handleSaveScreenerClick}
+                            className="bg-white border border-slate-200 px-5 py-2.5 rounded-full flex items-center gap-2 text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all shadow-sm"
+                            onClick={() => setShowCreateModal(true)}
                         >
+                            <Plus size={18} strokeWidth={3} className="text-blue-500" />
+                            Create Filter
+                        </button>
+                        <button className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-5 py-2.5 rounded-full flex items-center gap-2 text-sm font-bold transition-all hover:scale-105 shadow-lg shadow-blue-200">
                             <Star size={18} strokeWidth={3} />
                             Save Screener
                         </button>
                     </div>
                 </div>
 
+                {}
                 <div className={`${baseCardClass} !p-4 !mb-6 bg-white overflow-visible relative z-30`}>
                     <div className="flex flex-wrap items-center gap-3">
                         <div className="flex items-center gap-2 px-3 border-r border-slate-200">
@@ -560,19 +450,6 @@ const Screeners = ({ isHero = false, initialFilters = {} }) => {
                                         <span className="opacity-70"><Icon size={15} /></span>
                                         <span>{f.label}</span>
                                         <span className="text-blue-600 font-black ml-1 line-clamp-1 max-w-[80px]">{activeFilters[f.id] || 'Any'}</span>
-                                        {activeFilters[f.id] && activeFilters[f.id] !== 'Any' && (
-                                            <span 
-                                                className="ml-1 text-slate-400 hover:text-red-500 cursor-pointer transition-colors"
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    const newFilters = { ...activeFilters };
-                                                    delete newFilters[f.id];
-                                                    setActiveFilters(newFilters);
-                                                }}
-                                            >
-                                                <X size={14} strokeWidth={3} />
-                                            </span>
-                                        )}
                                         <ChevronDown size={14} strokeWidth={3} className={`mt-0.5 transition-transform ${openFilter === f.id ? 'rotate-180 text-blue-500' : 'opacity-40'}`} />
                                     </div>
 
@@ -654,6 +531,14 @@ const Screeners = ({ isHero = false, initialFilters = {} }) => {
                                 );
                             })}
                         </div>
+                        <button
+                            onClick={runScan}
+                            disabled={isLoading}
+                            className="ml-auto bg-blue-600 text-white px-5 py-1.5 rounded-full text-[12px] font-black flex items-center gap-2 shadow-md hover:bg-blue-700 transition-all disabled:opacity-60"
+                        >
+                            <RefreshCw size={13} className={isLoading ? 'animate-spin' : ''} />
+                            {isLoading ? 'Scanning...' : 'Run Scan'}
+                        </button>
                     </div>
                 </div>
 
@@ -664,28 +549,28 @@ const Screeners = ({ isHero = false, initialFilters = {} }) => {
                                 <TrendingUp size={18} className="text-orange-500" />
                                 Trending Screeners
                             </h2>
+                            <button className="text-[12px] font-black text-blue-600 uppercase tracking-widest hover:underline">Explore More</button>
                         </div>
-                        
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                        <div className="horizontal-carousel">
                             {[
-                                { title: 'IT Sector Breakouts', desc: 'Top tech companies breaking out on volume.', growth: '+12%', color: 'border-blue-100', preset: 'it_breakout', filters: { sector: 'IT' } },
-                                { title: 'High Dividend Giants', desc: 'Companies offering >1% yield with stable growth.', growth: '+4.2%', color: 'border-emerald-100', preset: 'div', filters: { yield: '> 1%', mcap: 'Large' } },
-                                { title: 'FMCG Defensive Play', desc: 'Low volatility consumer goods for safe investing.', growth: '+1.5%', color: 'border-amber-100', preset: 'fmcg_defensive', filters: { sector: 'FMCG' } },
-                                { title: 'LargeCap Growth Alpha', desc: 'Market leaders showing positive momentum.', growth: '+22%', color: 'border-purple-100', preset: 'largecap_growth', filters: { mcap: 'Large', change: '> 0%' } },
-                                { title: 'Nifty 50 Rebound', desc: 'Oversold bluechips poised for a bounce.', growth: '+5.4%', color: 'border-slate-100', preset: 'nifty_rebound', filters: { change: '< 0%' } },
-                                { title: 'Bluechip Scans', desc: 'The most reliable large cap institutions.', growth: '+18.4%', color: 'border-cyan-100', preset: 'bluechip', filters: { mcap: 'Large' } },
-                                { title: 'Value Picks', desc: 'Undervalued stocks with P/E under 15.', growth: '+31%', color: 'border-rose-100', preset: 'value_picks', filters: { pe: 'Low (<15)' } },
-                                { title: 'Pharma Recovery', desc: 'Healthcare stocks gaining traction.', growth: '+2.1%', color: 'border-teal-100', preset: 'pharma_recovery', filters: { sector: 'Healthcare' } },
-                                { title: 'EV Supply Chain', desc: 'Auto and ancillaries driving EV adoption.', growth: '+14%', color: 'border-lime-100', preset: 'ev_supply', filters: { sector: 'Auto' } },
-                                { title: 'Banking Consolidation', desc: 'Financial sector stocks near support.', growth: '+3.8%', color: 'border-indigo-100', preset: 'banking_consolidation', filters: { sector: 'Finance' } }
+                                { title: 'IT Sector Breakouts', users: '2.4k', growth: '+12%', color: 'border-blue-100' },
+                                { title: 'High Dividend Giants', users: '1.8k', growth: '+4.2%', color: 'border-emerald-100' },
+                                { title: 'FMCG Defensive Play', users: '950', growth: '+1.5%', color: 'border-amber-100' },
+                                { title: 'Midcap Growth Alpha', users: '3.1k', growth: '+22%', color: 'border-purple-100' },
+                                { title: 'Nifty 50 Rebound', users: '1.2k', growth: '+5.4%', color: 'border-slate-100' },
+                                { title: 'AI Momentum Scans', users: '4.2k', growth: '+18.4%', color: 'border-cyan-100' },
+                                { title: 'SmallCap Rockets', users: '6.5k', growth: '+31%', color: 'border-rose-100' },
+                                { title: 'Pharma Recovery', users: '800', growth: '+2.1%', color: 'border-teal-100' },
+                                { title: 'EV Supply Chain', users: '2.9k', growth: '+14%', color: 'border-lime-100' },
+                                { title: 'Banking Consolidation', users: '1.5k', growth: '+3.8%', color: 'border-indigo-100' },
                             ].map((scr, i) => (
-                                <div key={i} onClick={() => activeFilters.preset === scr.preset ? setActiveFilters({}) : setActiveFilters({ ...scr.filters, preset: scr.preset })} className={`w-full bg-white border ${activeFilters.preset === scr.preset ? 'border-blue-500 ring-2 ring-blue-500/20 shadow-md scale-[1.02]' : `${scr.color} hover:shadow-md`} p-5 rounded-2xl shadow-sm transition-all cursor-pointer group flex flex-col justify-between`}>
-                                    <div className="flex justify-between items-start mb-2">
-                                        <h3 className="font-black text-[15px] text-slate-800 group-hover:text-blue-600 line-clamp-1">{scr.title}</h3>
-                                        <span className="text-[11px] font-black px-2 py-0.5 bg-emerald-50 text-emerald-600 rounded-full shrink-0">{scr.growth}</span>
+                                <div key={i} className={`min-w-[280px] bg-white border ${scr.color} p-5 rounded-2xl shadow-sm hover:shadow-md transition-all cursor-pointer group`}>
+                                    <div className="flex justify-between items-start mb-4">
+                                        <h3 className="font-black text-[15px] text-slate-800 group-hover:text-blue-600">{scr.title}</h3>
+                                        <span className="text-[11px] font-black px-2 py-0.5 bg-emerald-50 text-emerald-600 rounded-full">{scr.growth}</span>
                                     </div>
-                                    <p className="text-[11px] font-bold text-slate-400 mb-4 line-clamp-2">{scr.desc}</p>
-                                    <div className="flex items-center justify-end text-[12px] font-bold text-slate-400 mt-auto">
+                                    <div className="flex items-center justify-between text-[12px] font-bold text-slate-400">
+                                        <span className="flex items-center gap-1.5"><Users size={14} /> {scr.users} users</span>
                                         <ChevronRight size={16} />
                                     </div>
                                 </div>
@@ -699,96 +584,39 @@ const Screeners = ({ isHero = false, initialFilters = {} }) => {
                                 <Star size={18} className="text-amber-500" />
                                 Ready-made Expert Screeners
                             </h2>
+                            <button className="text-[12px] font-black text-blue-600 uppercase tracking-widest hover:underline">View All</button>
                         </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                        <div className="horizontal-carousel">
                             {readyMade.map(item => {
                                 const Icon = item.icon || Activity;
                                 return (
                                     <div 
                                         key={item.id} 
-                                        onClick={() => activeFilters.preset === item.id ? setActiveFilters({}) : setActiveFilters({ ...item.filters, preset: item.id })}
-                                        className={`w-full bg-white border p-5 rounded-2xl shadow-sm transition-all cursor-pointer group flex flex-col justify-between ${activeFilters.preset === item.id ? 'border-blue-500 ring-2 ring-blue-500/20 shadow-md scale-[1.02]' : 'border-slate-100 hover:shadow-md'}`}
+                                        onClick={() => {
+                                            const newFilters = { ...item.filters };
+                                            setActiveFilters(newFilters);
+                                            runScanWithFilters(newFilters);
+                                        }}
+                                        className="min-w-[300px] bg-white border border-slate-100 p-5 rounded-2xl shadow-sm hover:shadow-md transition-all cursor-pointer group"
                                     >
-                                        <div>
-                                            <div className="flex items-center gap-4 mb-3">
+                                        <div className="flex items-center gap-4 mb-3">
                                             <div className={`p-2.5 rounded-xl ${item.bg} ${item.color} group-hover:scale-110 transition-transform shadow-sm`}>
                                                 <Icon size={20} strokeWidth={3} />
                                             </div>
                                             <h3 className="font-black text-[15px] text-slate-800">{item.title}</h3>
                                         </div>
                                         <p className="text-[12px] font-bold text-slate-400 leading-relaxed mb-4">{item.desc}</p>
-                                        </div>
-                                        <button className="w-full py-2 bg-slate-50 text-slate-400 font-black text-[11px] uppercase tracking-widest rounded-lg group-hover:bg-blue-600 group-hover:text-white transition-all mt-auto">Launch Preview</button>
+                                        <button className="w-full py-2 bg-slate-50 text-slate-400 font-black text-[11px] uppercase tracking-widest rounded-lg group-hover:bg-blue-600 group-hover:text-white transition-all">Launch Preview</button>
                                     </div>
                                 );
                             })}
                         </div>
                     </div>
-
-                    {savedScreeners.length > 0 && (
-                        <div className="mt-8">
-                            <div className="flex items-center justify-between mb-4 px-2">
-                                <h2 className="text-[16px] font-black text-slate-800 flex items-center gap-2">
-                                    <Star size={18} className="text-blue-500" />
-                                    Your Saved Screeners
-                                </h2>
-                            </div>
-                            <div className="horizontal-carousel">
-                                {savedScreeners.map(screener => (
-                                    <div 
-                                        key={screener.id} 
-                                        onClick={() => handleLoadSavedScreener(screener)}
-                                        className={`min-w-[300px] bg-white border p-5 rounded-2xl shadow-sm transition-all cursor-pointer group relative ${activeFilters.preset === screener.id ? 'border-blue-500 ring-2 ring-blue-500/20 shadow-md scale-[1.02]' : 'border-slate-100 hover:shadow-md'}`}
-                                    >
-                                        <div className="flex items-center justify-between mb-3">
-                                            <div className="flex items-center gap-3">
-                                                <div className="p-2.5 rounded-xl bg-blue-50 text-blue-600 group-hover:scale-110 transition-transform shadow-sm">
-                                                    <Filter size={20} strokeWidth={3} />
-                                                </div>
-                                                <h3 className="font-black text-[15px] text-slate-800 line-clamp-1">{screener.name}</h3>
-                                            </div>
-                                            <button 
-                                                onClick={(e) => handleDeleteSavedScreener(e, screener.id)}
-                                                className="p-1.5 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"
-                                            >
-                                                <Trash2 size={16} />
-                                            </button>
-                                        </div>
-                                        <p className="text-[12px] font-bold text-slate-400 leading-relaxed mb-4 line-clamp-2">{screener.purpose}</p>
-                                        <div className="flex flex-wrap gap-1.5 mb-4">
-                                            {Object.entries(screener.filters).map(([k, v]) => {
-                                                if (v && v !== 'Any' && v !== 'All') {
-                                                    return (
-                                                        <span key={k} className="text-[10px] font-black px-2 py-0.5 bg-slate-50 text-slate-600 rounded border border-slate-100 capitalize">
-                                                            {k}: <span className="text-blue-600">{v}</span>
-                                                        </span>
-                                                    );
-                                                }
-                                                return null;
-                                            })}
-                                        </div>
-                                        <button className="w-full py-2 bg-slate-50 text-slate-400 font-black text-[11px] uppercase tracking-widest rounded-lg group-hover:bg-blue-600 group-hover:text-white transition-all">Apply Filters</button>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
                 </div>
 
-                {!hasActiveFilters ? (
-                    <div className="flex flex-col items-center justify-center p-20 bg-white border border-slate-100 rounded-3xl shadow-sm mt-8 mb-20 text-center">
-                        <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-6">
-                            <Filter size={32} className="text-slate-300" />
-                        </div>
-                        <h2 className="text-[20px] font-black text-slate-800 mb-3">Waiting for your filters to step up</h2>
-                        <p className="text-[14px] font-bold text-slate-400 max-w-md">
-                            Select custom filters, click a trending screener, or launch a ready-made expert screener to see live market insights.
-                        </p>
-                    </div>
-                ) : (
-                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 pb-20 mt-8">
-                        <div className="lg:col-span-12">
-                            <div className={`${baseCardClass} !p-0 overflow-hidden bg-white`}>
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 pb-20">
+                    <div className="lg:col-span-12">
+                        <div className={`${baseCardClass} !p-0 overflow-hidden bg-white`}>
                             <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/30">
                                 <div>
                                     <h2 className="text-lg font-black text-slate-800">Screener Insights</h2>
@@ -808,27 +636,6 @@ const Screeners = ({ isHero = false, initialFilters = {} }) => {
                                     <div className="bg-white border border-slate-200 px-3 py-1.5 rounded-lg flex items-center gap-2 shadow-sm text-xs font-bold text-slate-600">
                                         Matches: <span className="text-blue-600">{filteredResults.length}</span>
                                     </div>
-                                    {Math.ceil(filteredResults.length / ITEMS_PER_PAGE) > 1 && (
-                                        <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg p-1 shadow-sm">
-                                            <button 
-                                                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                                                disabled={currentPage === 1}
-                                                className="p-1 rounded hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent"
-                                            >
-                                                <ChevronLeft size={16} />
-                                            </button>
-                                            <span className="text-xs font-bold text-slate-600 px-2">
-                                                {currentPage} / {Math.ceil(filteredResults.length / ITEMS_PER_PAGE)}
-                                            </span>
-                                            <button 
-                                                onClick={() => setCurrentPage(p => Math.min(Math.ceil(filteredResults.length / ITEMS_PER_PAGE), p + 1))}
-                                                disabled={currentPage === Math.ceil(filteredResults.length / ITEMS_PER_PAGE)}
-                                                className="p-1 rounded hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent"
-                                            >
-                                                <ChevronRight size={16} />
-                                            </button>
-                                        </div>
-                                    )}
                                     <button 
                                         onClick={runScan}
                                         disabled={isLoading}
@@ -858,22 +665,16 @@ const Screeners = ({ isHero = false, initialFilters = {} }) => {
                                             <th>Trend</th>
                                             <th>Mcap</th>
                                             <th>Metrics</th>
-                                            <th>Filters</th>
+                                            <th>Insight (Behavioral Diagnostics)</th>
                                             <th>Action</th>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {filteredResults.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE).map(stock => (
+                                        {filteredResults.map(stock => (
                                             <tr key={stock.id} className="hover:bg-slate-50/80 transition-colors group">
                                                 <td>
                                                     <div className="flex items-center gap-3">
-                                                        <img 
-                                                            src={`https://logo.clearbit.com/${(stock.id || '').split('.')[0]}.com`} 
-                                                            alt="Logo" 
-                                                            className="w-8 h-8 rounded object-cover" 
-                                                            onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }}
-                                                        />
-                                                        <div className="w-8 h-8 rounded bg-slate-100 hidden items-center justify-center font-black text-[10px] text-slate-400 text-center uppercase p-1">Stock</div>
+                                                        <div className="w-8 h-8 rounded bg-slate-100 flex items-center justify-center font-black text-[10px] text-slate-400 text-center uppercase p-1">Stock</div>
                                                         <div className="flex flex-col">
                                                             <span className="font-black text-slate-900 group-hover:text-blue-600 transition-colors">{(stock.id || '').split('.')[0]}</span>
                                                             <span className="text-[10px] font-bold text-slate-400 uppercase">{stock.sector}</span>
@@ -896,7 +697,6 @@ const Screeners = ({ isHero = false, initialFilters = {} }) => {
                                                                         <stop offset="95%" stopColor={stock.isPositive ? '#10b981' : '#f43f5e'} stopOpacity={0} />
                                                                     </linearGradient>
                                                                 </defs>
-                                                                <YAxis domain={['dataMin', 'dataMax']} hide />
                                                                 <Area 
                                                                     type="monotone" 
                                                                     dataKey="price" 
@@ -926,38 +726,28 @@ const Screeners = ({ isHero = false, initialFilters = {} }) => {
                                                         </div>
                                                     </div>
                                                 </td>
-                                                <td className="max-w-[300px]">
-                                                    <div className="flex flex-wrap gap-1.5">
-                                                        {Object.entries(activeFilters).map(([k, v]) => {
-                                                            if (v && v !== 'Any' && v !== 'All') {
-                                                                return (
-                                                                    <span key={k} className="text-[10px] font-black px-2 py-0.5 bg-slate-50 text-slate-600 rounded border border-slate-100 capitalize">
-                                                                        {k}: <span className="text-blue-600">{v}</span>
-                                                                    </span>
-                                                                );
-                                                            }
-                                                            return null;
-                                                        })}
-                                                        {Object.keys(activeFilters).filter(k => activeFilters[k] && activeFilters[k] !== 'Any' && activeFilters[k] !== 'All').length === 0 && (
-                                                            <span className="text-[11px] font-bold text-slate-400 italic">No active filters</span>
-                                                        )}
+                                                <td className="max-w-[400px]">
+                                                    <div className="flex flex-col gap-2">
+                                                        <p className="text-[13px] text-slate-600 font-medium leading-tight">{stock.why}</p>
+                                                        <div className="flex gap-1.5">
+                                                            {stock.tags.map(t => (
+                                                                <span key={t} className="text-[10px] font-black px-2 py-0.5 bg-blue-50 text-blue-600 rounded border border-blue-100/50 uppercase">
+                                                                    {t}
+                                                                </span>
+                                                            ))}
+                                                            <div className="flex items-center gap-2 ml-2">
+                                                                <div className="w-12 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                                                    <div className="h-full bg-emerald-500" style={{ width: `${stock.confidence}%` }}></div>
+                                                                </div>
+                                                                <span className="text-[10px] font-bold text-slate-400">{stock.confidence}% Signal</span>
+                                                            </div>
+                                                        </div>
                                                     </div>
                                                 </td>
                                                 <td>
-                                                    <div className="flex items-center gap-2">
-                                                        <button 
-                                                            onClick={(e) => toggleWatchlist(e, stock.id)}
-                                                            className={`p-2 rounded-lg transition-all shadow-sm border ${watchlist.includes((stock.id || '').split('.')[0].toUpperCase()) ? 'bg-amber-100 text-amber-500 border-amber-200' : 'bg-slate-50 text-slate-400 hover:bg-amber-50 hover:text-amber-500 border-slate-100'}`}
-                                                        >
-                                                            <Star size={16} fill={watchlist.includes((stock.id || '').split('.')[0].toUpperCase()) ? 'currentColor' : 'none'} />
-                                                        </button>
-                                                        <button 
-                                                            onClick={() => navigate(`/investor-stock/${(stock.id || '').split('.')[0]}`)}
-                                                            className="p-2 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white transition-all shadow-sm border border-blue-100"
-                                                        >
-                                                            <ArrowUpRight size={16} strokeWidth={3} />
-                                                        </button>
-                                                    </div>
+                                                    <button className="p-2 rounded-lg bg-slate-50 text-slate-400 hover:bg-blue-600 hover:text-white transition-all shadow-sm border border-slate-100">
+                                                        <Star size={16} />
+                                                    </button>
                                                 </td>
                                             </tr>
                                         ))}
@@ -978,8 +768,8 @@ const Screeners = ({ isHero = false, initialFilters = {} }) => {
                         </div>
                     </div>
                 </div>
-                )}
 
+                {/* ── Create Filter Modal ───────────────────────────── */}
                 {showCreateModal && (
                     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
                         <div className="absolute inset-0 modal-overlay" onClick={() => setShowCreateModal(false)} />
@@ -1035,6 +825,7 @@ const Screeners = ({ isHero = false, initialFilters = {} }) => {
                                 </button>
                             </div>
 
+                            {/* My saved filters */}
                             {myFilters.length > 0 && (
                                 <div className="mt-6 pt-5 border-t border-slate-100">
                                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">My Saved Filters</p>
@@ -1087,64 +878,6 @@ const Screeners = ({ isHero = false, initialFilters = {} }) => {
                                 </div>
                             </div>
                             <button onClick={() => setShowSignalModal(null)} className="w-full py-3 bg-slate-900 text-white rounded-xl font-black shadow-lg">Close Explanation</button>
-                        </div>
-                    </div>
-                )}
-
-                {/* ── Save Screener Modal ───────────────────────────── */}
-                {showSaveScreenerModal && (
-                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-                        <div className="absolute inset-0 modal-overlay" onClick={() => setShowSaveScreenerModal(false)} />
-                        <div className="bg-white rounded-3xl w-full max-w-md p-8 relative z-10 shadow-2xl fade-in-up">
-                            <div className="flex justify-between items-start mb-6">
-                                <div>
-                                    <h2 className="text-2xl font-black text-slate-800">Save Screener</h2>
-                                    <p className="text-sm font-bold text-slate-400">Save your current filters for later use.</p>
-                                </div>
-                                <button onClick={() => setShowSaveScreenerModal(false)} className="p-2 hover:bg-slate-100 rounded-full transition-colors"><X size={20} /></button>
-                            </div>
-                            <div className="space-y-4">
-                                <div>
-                                    <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Screener Name</label>
-                                    <input
-                                        type="text"
-                                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none font-bold text-slate-800 focus:bg-white focus:border-blue-500 transition-all"
-                                        placeholder="e.g. My High Dividend Strategy"
-                                        value={newScreenerName}
-                                        onChange={e => setNewScreenerName(e.target.value)}
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Purpose / Why</label>
-                                    <textarea
-                                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none font-bold text-slate-800 h-24 focus:bg-white focus:border-blue-500 transition-all"
-                                        placeholder="Why did you build this screener? What's its purpose?"
-                                        value={newScreenerPurpose}
-                                        onChange={e => setNewScreenerPurpose(e.target.value)}
-                                    />
-                                </div>
-                                <div className="p-4 bg-blue-50 rounded-xl">
-                                    <p className="text-[11px] font-black text-blue-800 uppercase tracking-widest mb-2">Filters to Save</p>
-                                    <div className="flex flex-wrap gap-1.5">
-                                        {Object.entries(activeFilters).map(([k, v]) => {
-                                            if (v && v !== 'Any' && v !== 'All') {
-                                                return (
-                                                    <span key={k} className="text-[10px] font-black px-2 py-0.5 bg-white text-slate-600 rounded border border-blue-100 capitalize">
-                                                        {k}: <span className="text-blue-600">{v}</span>
-                                                    </span>
-                                                );
-                                            }
-                                            return null;
-                                        })}
-                                    </div>
-                                </div>
-                                <button
-                                    onClick={handleConfirmSaveScreener}
-                                    className="w-full py-4 bg-blue-600 text-white rounded-xl font-black text-lg shadow-xl shadow-blue-200 mt-4 active:scale-95 transition-all"
-                                >
-                                    Save Screener
-                                </button>
-                            </div>
                         </div>
                     </div>
                 )}

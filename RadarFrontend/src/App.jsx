@@ -1,6 +1,7 @@
 import { Suspense, lazy, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, Navigate, useLocation, useParams, useSearchParams } from 'react-router-dom';
 import { AssetProvider } from './context/AssetContext';
+import { fetchUniverse } from './services/universeService';
 import {
   VerifyEmailPage,
   ResetPasswordPage,
@@ -8,11 +9,11 @@ import {
   DiscoveryPage,
   CalendarPage,
   NewsPage,
-  WatchlistsPage,
+  InvestorWatchlistsPage,
+  TraderWatchlistsPage,
   PortfolioPage,
   AlertsPage,
   ReportsExportPage,
-  ProfilePage,
   SettingsPage,
   HelpSupportPage,
   InvestorFilingsPage,
@@ -29,7 +30,6 @@ const ResetPassword = lazy(() => import('./pages/ResetPassword'));
 const TraderStockPage = lazy(() => import('./pages/TraderStockPage'));
 const TradeTerminalPage = lazy(() => import('./pages/TradeTerminalPage'));
 const MinimalChartPage = lazy(() => import('./pages/MinimalChartPage'));
-const TraderProfilePage = lazy(() => import('./pages/traderProfile/TraderProfilePage'));
 const TraderSettingsPage = lazy(() => import('./pages/settings/SettingsPage'));
 const AdminDashboard = lazy(() => import('./components/AdminDashboard'));
 const RealtimeDemoPage = lazy(() => import('./pages/RealtimeDemoPage'));
@@ -65,12 +65,14 @@ const RouteStatusPage = ({ title, message, actionTo = '/', actionLabel = 'Go Hom
   </div>
 );
 
-const DashboardAliasRoute = ({ mode, module }) => {
+const DashboardAliasRoute = ({ mode }) => {
+  // Set localStorage immediately so Dashboard initializer picks it up
   if (typeof window !== 'undefined' && mode) {
     localStorage.setItem('mode', mode);
   }
-
-  return <Dashboard />;
+  // key={mode} forces full remount when switching between trader/investor
+  // This resets all useState initializers so isTraderMode is derived fresh from localStorage
+  return <Dashboard key={mode} />;
 };
 
 const AssetAliasRoute = () => {
@@ -124,12 +126,16 @@ const getStoredMode = () => {
     : 'INVESTOR';
 };
 
-const ProfileRoute = () => (getStoredMode() === 'TRADER' ? <TraderProfilePage /> : <ProfilePage />);
+const ProfileRoute = () => (
+  getStoredMode() === 'TRADER'
+    ? <Navigate to="/trader/dashboard/profile" replace />
+    : <Navigate to="/investor/dashboard/profile" replace />
+);
 
 const SettingsRoute = () => (getStoredMode() === 'TRADER' ? <TraderSettingsPage /> : <SettingsPage />);
 
-const SupportRoute = () => (getStoredMode() === 'TRADER' ? <TraderHelpSupportPage /> : <HelpSupportPage />);
-const InvestorSupportRoute = () => <HelpSupportPage />;
+const SupportRoute = () => (getStoredMode() === 'TRADER' ? <Navigate to="/trader/dashboard/support" replace /> : <HelpSupportPage dashboardPath="/investor/dashboard" />);
+const InvestorSupportRoute = () => <HelpSupportPage dashboardPath="/investor/dashboard" />;
 const TraderSupportRoute = () => <TraderHelpSupportPage />;
 
 const AdvancedChartsRoute = () => {
@@ -150,6 +156,11 @@ const DashboardRedirect = () => {
 };
 
 function App() {
+  // Initialize market universe on app startup
+  useEffect(() => {
+    fetchUniverse().catch(err => console.error('Failed to initialize universe:', err));
+  }, []);
+
   return (
     <AssetProvider>
       <Router>
@@ -172,11 +183,11 @@ function App() {
             <Route path="/asset/:symbol" element={<AssetAliasRoute />} />
 
             {/* Persona Dashboards */}
-            <Route path="/investor/dashboard" element={<DashboardAliasRoute mode="INVESTOR" />} />
-            <Route path="/trader/dashboard" element={<DashboardAliasRoute mode="TRADER" />} />
+            <Route path="/investor/dashboard/:module?" element={<DashboardAliasRoute mode="INVESTOR" />} />
+            <Route path="/trader/dashboard/:module?" element={<DashboardAliasRoute mode="TRADER" />} />
 
             {/* Investor Specialized Routes */}
-            <Route path="/investor/momentum" element={<DashboardAliasRoute mode="TRADER" />} />
+            <Route path="/investor/momentum" element={<DashboardAliasRoute mode="INVESTOR" />} />
             <Route path="/investor/valuation" element={<DashboardAliasRoute mode="INVESTOR" />} />
             <Route path="/investor/filings" element={<InvestorFilingsPage />} />
             <Route path="/investor/screener" element={<ScreenerPage />} />
@@ -184,25 +195,24 @@ function App() {
             <Route path="/investor/discovery" element={<DiscoveryPage />} />
             <Route path="/investor/calendar" element={<CalendarPage />} />
             <Route path="/investor/news" element={<NewsPage />} />
-            <Route path="/investor/watchlists" element={<WatchlistsPage />} />
+            <Route path="/investor/watchlists" element={<InvestorWatchlistsPage />} />
             <Route path="/investor/portfolio" element={<PortfolioPage />} />
             <Route path="/investor/alerts" element={<AlertsPage />} />
             <Route path="/investor/reports/export" element={<ReportsExportPage />} />
-            <Route path="/investor/profile" element={<ProfilePage />} />
+            <Route path="/investor/profile" element={<Navigate to="/investor/dashboard/profile" replace />} />
             <Route path="/investor/settings" element={<SettingsPage />} />
-            <Route path="/investor/support" element={<HelpSupportPage />} />
+            <Route path="/investor/support" element={<HelpSupportPage dashboardPath="/investor/dashboard" />} />
             <Route path="/investor/advanced-charts" element={<InvestorAdvancedCharts />} />
 
             {/* Trader Specialized Routes */}
-            <Route path="/trader/profile" element={<TraderProfilePage />} />
-            <Route path="/trader/settings" element={<TraderSettingsPage />} />
-            <Route path="/trader/support" element={<TraderHelpSupportPage />} />
+            <Route path="/trader/profile" element={<Navigate to="/trader/dashboard/profile" replace />} />
+            <Route path="/trader/settings" element={<Navigate to="/trader/dashboard/settings" replace />} />
+            <Route path="/trader/support" element={<Navigate to="/trader/dashboard/support" replace />} />
             <Route path="/trader/terminal/:symbol" element={<TradeTerminalPage />} />
             <Route path="/trader/charts/:symbol" element={<MinimalChartPage />} />
-            <Route path="/trader/watchlists" element={<WatchlistsPage />} />
+            <Route path="/trader/watchlists" element={<TraderWatchlistsPage />} />
 
             {/* Legacy/Redirect Routes */}
-            <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/profile" element={<ProfileRoute />} />
             <Route path="/settings" element={<SettingsRoute />} />
             <Route path="/support" element={<SupportRoute />} />
@@ -219,7 +229,7 @@ function App() {
             <Route path="/portfolio" element={<Navigate to="/investor/portfolio" replace />} />
             <Route path="/alerts" element={<Navigate to="/investor/alerts" replace />} />
             <Route path="/reports/export" element={<Navigate to="/investor/reports/export" replace />} />
-            <Route path="/trader-profile" element={<Navigate to="/trader/profile" replace />} />
+            <Route path="/trader-profile" element={<Navigate to="/trader/dashboard/profile" replace />} />
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/admin/health" element={<Navigate to="/admin" replace />} />
             <Route path="/demo" element={<RealtimeDemoPage />} />

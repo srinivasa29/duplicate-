@@ -126,76 +126,8 @@ class FinnhubService {
   }
 
   
-  
   convertToFinnhubSymbol(symbol) {
-
-    // Already formatted
-    if (
-        symbol.startsWith('NSE:') ||
-        symbol.startsWith('BSE:') ||
-        symbol.startsWith('BINANCE:') ||
-        symbol.startsWith('OANDA:')
-    ) {
-        return symbol;
-    }
-
-    // NSE Stocks
-    if (symbol.endsWith('.NS')) {
-        return `NSE:${symbol.replace('.NS', '')}`;
-    }
-
-    // BSE Stocks
-    if (symbol.endsWith('.BO')) {
-        return `BSE:${symbol.replace('.BO', '')}`;
-    }
-
-    // Default NSE
-    return `NSE:${symbol}`;
-}
-
-  async getCandles(symbol, resolution, from, to) {
-    try {
-      if (!this.canMakeRequest()) {
-        return { success: false, message: 'Rate limit exceeded' };
-      }
-
-      const finnhubSymbol = this.convertToFinnhubSymbol(symbol);
-      const response = await axios.get(`${this.baseUrl}/stock/candle`, {
-        params: {
-          symbol: finnhubSymbol,
-          resolution,
-          from,
-          to,
-          token: this.apiKey,
-        },
-        timeout: 10000,
-      });
-
-      this.recordRequest();
-
-      if (response.data.s === 'no_data') {
-        return { success: true, data: [] };
-      }
-
-      if (response.data.s !== 'ok') {
-        return { success: false, message: response.data.s };
-      }
-
-      const data = response.data;
-      const formatted = data.t.map((timestamp, index) => ({
-        time: timestamp,
-        open: data.o[index],
-        high: data.h[index],
-        low: data.l[index],
-        close: data.c[index],
-        volume: data.v[index]
-      }));
-
-      return { success: true, data: formatted };
-    } catch (error) {
-      logger.error(`Finnhub candle error for ${symbol}: ${error.message}`);
-      return { success: false, message: error.message };
-    }
+    return symbol;
   }
 
   

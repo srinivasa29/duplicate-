@@ -1,0 +1,26 @@
+name: Seed OHLC Nightly
+on:
+  schedule:
+    - cron: '0 1 * * *' # 01:00 UTC daily (adjust to your timezone)
+  workflow_dispatch:
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install backend deps
+        run: npm ci
+        working-directory: radar-main-backend
+      - name: Run seeder
+        env:
+          TWELVE_API_KEY: ${{ secrets.TWELVE_API_KEY }}
+          MONGO_URI: ${{ secrets.MONGO_URI }}
+          EXCHANGE: NSE
+          OUTPUT_SIZE: 500
+        run: npm run seed:ohlc
+        working-directory: radar-main-backend

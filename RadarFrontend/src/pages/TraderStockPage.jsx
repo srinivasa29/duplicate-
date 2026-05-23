@@ -1,11 +1,14 @@
 import React, { useEffect, useState, lazy, Suspense } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ChevronLeft, TrendingUp, TrendingDown, Layers, Activity, AlertTriangle, Zap, BarChart2 } from 'lucide-react';
+import { ChevronLeft, TrendingUp, TrendingDown, Layers, Activity, AlertTriangle, Zap, BarChart2, Bookmark, BookmarkCheck } from 'lucide-react';
 import { fetchTechnicalSummary } from '../api/technicalApi';
-import { fetchWatchlistLiveData } from '../api/watchlistApi';
+import { fetchWatchlistLiveData, addSymbolToWatchlist, removeSymbolFromWatchlist } from '../api/watchlistApi';
 import { fetchMarketHistory } from '../api/marketApi';
 import api from '../api/api';
 import { formatPrice } from '../utils/currency';
+import { getAssetMetadata } from '../utils/assetClassifier';
+import StockFundamentalsPanel from '../components/shared/StockFundamentalsPanel';
+import { useMarketStatus } from '../hooks/useMarketStatus';
 
 import TradeDecisionZone from '../components/trader/stockResearch/TradeDecisionZone';
 
@@ -266,63 +269,10 @@ const PerformanceSection = ({ stock, techData }) => {
   );
 };
 
-const FundamentalsSection = ({ stockDetails }) => {
-  const isCompany = !!stockDetails?.pe_ratio;
-  const qRev = [8.2, 8.8, 9.1, 9.4, 9.7];
-  const qPro = [0.62, 0.7, 0.74, 0.76, 0.79];
-  const qtrs = ['Q2FY24', 'Q3FY24', 'Q4FY24', 'Q1FY25', 'Q2FY25'];
-  
-  const BarChart = ({ vals, color }) => {
-    const mx = Math.max(...vals);
-    return (
-      <div className="mt-3 flex h-24 items-end gap-2">
-        {vals.map((v, i) => (
-          <div key={i} className="flex flex-1 flex-col items-center gap-1">
-            <span className="text-[8px] font-bold text-slate-500">{v}</span>
-            <div className="w-full rounded-t" style={{ height: `${(v / mx) * 60}px`, background: color, opacity: 0.55 + i * 0.1 }} />
-            <span className="w-full truncate text-center text-[8px] text-slate-600">{qtrs[i]}</span>
-          </div>
-        ))}
-      </div>
-    );
-  };
-
-  return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-3 gap-3 sm:grid-cols-6">
-        {[
-          ['P/E', stockDetails?.pe_ratio || 'N/A', '#94a3b8'],
-          ['Div%', stockDetails?.dividend_yield ? `${stockDetails.dividend_yield}%` : 'N/A', '#22d3ee'],
-          ['Sector', stockDetails?.sector || 'N/A', '#10b981'],
-          ['P/B', '3.12', '#94a3b8'],
-          ['ROE', '18.2%', '#10b981'],
-          ['D/E', '0.45', '#f59e0b'],
-        ].map(([l, v, c]) => (
-          <div key={l} className="rounded-2xl border border-white/5 p-4 text-center" style={{ background: 'rgba(255,255,255,0.02)' }}>
-            <div className="mb-2 text-[9px] font-black uppercase tracking-widest text-slate-500">{l}</div>
-            <div className="text-[13px] sm:text-[15px] xl:text-xl font-black truncate" style={{ color: c }}>{v}</div>
-          </div>
-        ))}
-      </div>
-      
-      {isCompany && (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <Card><Lbl>Quarterly Revenue (Rs T)</Lbl><BarChart vals={qRev} color="#22d3ee" /></Card>
-          <Card><Lbl>Quarterly Profit (Rs T)</Lbl><BarChart vals={qPro} color="#10b981" /></Card>
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 gap-3">
-        <div className="rounded-2xl border border-white/5 p-5" style={{ background: 'rgba(255,255,255,0.02)' }}>
-          <div className="mb-2 text-[9px] font-black uppercase tracking-widest text-slate-500">About the Company</div>
-          <div className="text-sm font-medium text-slate-300 leading-relaxed">
-            {stockDetails?.about || 'Detailed fundamental information is not available for this asset.'}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
+// FundamentalsSection now delegates to the shared DB-backed panel
+const FundamentalsSection = ({ symbol }) => (
+  <StockFundamentalsPanel symbol={symbol} compact={true} />
+);
 
 const KeyLevelsSignal = ({ keyLevels, techData, stock }) => {
   const breakdown = techData?.score?.breakdown || {};
@@ -397,21 +347,14 @@ export default function TraderStockPage({ overrideSymbol, onBack }) {
   const [stockDetails, setStockDetails] = useState({});
   const [tab, setTab] = useState('Insights');
   const [watchlist, setWatchlist] = useState([]);
+  const [watchlistId, setWatchlistId] = useState(null);
+  const [isInWatchlist, setIsInWatchlist] = useState(false);
+  const [watchlistMsg, setWatchlistMsg] = useState('');
   const [marketStatus, setMarketStatus] = useState({ nifty: null, bankNifty: null, isOpen: false });
   const [assetType, setAssetType] = useState('STOCK');
-
-  // Market status: NSE hours Mon-Fri 09:15-15:30 IST
-  const isMarketOpen = () => {
-    const now = new Date();
-    // IST = UTC + 5:30
-    const ist = new Date(now.getTime() + (5.5 * 60 * 60 * 1000));
-    const day = ist.getUTCDay(); // 0=Sun, 6=Sat
-    if (day === 0 || day === 6) return false;
-    const h = ist.getUTCHours();
-    const m = ist.getUTCMinutes();
-    const mins = h * 60 + m;
-    return mins >= 9 * 60 + 15 && mins <= 15 * 60 + 30;
-  };
+  
+  const assetMeta = getAssetMetadata(stock.symbol);
+  const { isOpen: isMarketOpen, isCrypto } = useMarketStatus(assetMeta.type);
 
   // Fetch NIFTY + BANKNIFTY live change %
   useEffect(() => {
@@ -434,7 +377,7 @@ export default function TraderStockPage({ overrideSymbol, onBack }) {
           setMarketStatus({
             nifty: calcChange(niftyRes),
             bankNifty: calcChange(bankRes),
-            isOpen: isMarketOpen(),
+            isOpen: isMarketOpen,
           });
         }
       } catch (e) {
@@ -445,7 +388,13 @@ export default function TraderStockPage({ overrideSymbol, onBack }) {
     // Refresh every 5 mins
     const interval = setInterval(load, 5 * 60 * 1000);
     return () => { active = false; clearInterval(interval); };
-  }, []);
+  }, [assetMeta.type]);
+
+  useEffect(() => {
+    if (assetMeta.type !== 'Equity' && tab === 'Fundamentals') {
+      setTab('Insights');
+    }
+  }, [assetMeta.type, tab]);
 
   useEffect(() => {
     if (!symbol) return;
@@ -455,8 +404,9 @@ export default function TraderStockPage({ overrideSymbol, onBack }) {
     Promise.allSettled([
       fetchTechnicalSummary('stock', symbol),
       api.get(`/market?symbols=${encodeURIComponent(symbol)}`).catch(() => null),
-      fetchWatchlistLiveData(),
-    ]).then(([techRes, mktRes, wlRes]) => {
+      fetchWatchlistLiveData('trader'),
+      api.get('/watchlist', { params: { mode: 'trader' } }).catch(() => ({ data: [] })),
+    ]).then(([techRes, mktRes, wlRes, listsRes]) => {
       if (!active) return;
 
       const tech = techRes.status === 'fulfilled' ? techRes.value : null;
@@ -467,13 +417,17 @@ export default function TraderStockPage({ overrideSymbol, onBack }) {
 
       const price = Number(mkt?.price ?? mkt?.ltp ?? tech?.indicators?.ema20 ?? 0);
       const changePercent = Number(mkt?.changePercent ?? mkt?.pChange ?? 0);
+      const am = getAssetMetadata(symbol);
+      const isCrypto = am.type === 'Crypto';
 
       setStock({
         symbol: symbol.replace(/\.(NS|BO)$/i, ''),
         name: mkt?.name ?? mkt?.companyName ?? `${symbol} Ltd.`,
         price,
         changePercent,
-        volume: mkt?.volume != null && mkt.volume > 0 ? `${(Number(mkt.volume) / 1e6).toFixed(2)}M` : '—',
+        volume: mkt?.volume != null && mkt.volume > 0 
+          ? (isCrypto ? `${Number(mkt.volume).toLocaleString()} ${am.currency}` : `${(Number(mkt.volume) / 1e6).toFixed(2)}M`) 
+          : '—',
         atr: tech?.indicators?.atr ? Number(tech.indicators.atr).toFixed(1) : '—',
         dayRange: mkt?.dayLow && mkt?.dayHigh && mkt.dayLow !== mkt.dayHigh ? `${mkt.dayLow} – ${mkt.dayHigh}` : '—',
         sentiment: tech?.score?.bias ?? '—',
@@ -491,10 +445,23 @@ export default function TraderStockPage({ overrideSymbol, onBack }) {
       
       if (Array.isArray(wlArr)) {
         setWatchlist(wlArr.map(w => ({
-          symbol: w.symbol.replace(/\.(NS|BO)$/i, ''),
+          symbol: w.symbol.replace(/\.(NS|BO)$/i, '').replace(/-USD$/i, ''),
           price: Number(w.price || w.ltp || 0),
           chg: Number(w.changePercent || w.pChange || 0)
         })));
+      }
+
+      // Populate watchlistId and isInWatchlist
+      if (listsRes?.status === 'fulfilled') {
+        const lists = Array.isArray(listsRes.value?.data) ? listsRes.value.data : [];
+        if (lists.length > 0) {
+          const id = lists[0]._id || lists[0].id || null;
+          setWatchlistId(id);
+          const symSet = new Set((lists[0].items || []).map(i =>
+            String(typeof i === 'string' ? i : (i?.symbol || '')).replace(/\.(NS|BO)$/i, '').toUpperCase()
+          ));
+          setIsInWatchlist(symSet.has(symbol.replace(/\.(NS|BO)$/i, '').toUpperCase()));
+        }
       }
 
       setLoading(false);
@@ -516,6 +483,24 @@ export default function TraderStockPage({ overrideSymbol, onBack }) {
 
   const pos = stock.changePercent >= 0;
 
+  const handleWatchlistToggle = async () => {
+    if (!watchlistId) { setWatchlistMsg('No watchlist found'); setTimeout(() => setWatchlistMsg(''), 2000); return; }
+    try {
+      if (isInWatchlist) {
+        await removeSymbolFromWatchlist(watchlistId, symbol);
+        setIsInWatchlist(false);
+        setWatchlistMsg('Removed from watchlist');
+      } else {
+        await addSymbolToWatchlist(watchlistId, symbol);
+        setIsInWatchlist(true);
+        setWatchlistMsg('Added to watchlist!');
+      }
+    } catch (e) {
+      setWatchlistMsg('Failed — try again');
+    }
+    setTimeout(() => setWatchlistMsg(''), 2500);
+  };
+
   return (
     <div className="min-h-screen text-slate-200" style={{ background: '#050B14', fontFamily: 'Inter,system-ui,sans-serif' }}>
       <div className="sticky top-0 z-30 flex items-center justify-between border-b border-white/5 px-5 py-2.5" style={{ background: '#0B1220' }}>
@@ -533,27 +518,40 @@ export default function TraderStockPage({ overrideSymbol, onBack }) {
             {marketStatus.bankNifty !== null ? `${marketStatus.bankNifty >= 0 ? '+' : ''}${marketStatus.bankNifty.toFixed(2)}%` : '—'}
           </span>
           <div className="h-4 w-px bg-white/10" />
-          {marketStatus.isOpen ? (
+          {isMarketOpen || isCrypto ? (
             <span className="flex items-center gap-1.5 text-emerald-400">
+              <span className="text-slate-500 font-normal mr-1">Asset Status:</span>
               <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
-              Live
+              {isCrypto ? 'CRYPTO 24/7' : 'MARKET OPEN'}
             </span>
           ) : (
             <span className="flex items-center gap-1.5 text-slate-500">
+              <span className="text-slate-500 font-normal mr-1">Asset Status:</span>
               <span className="h-1.5 w-1.5 rounded-full bg-slate-500" />
-              Closed
+              MARKET CLOSED
             </span>
           )}
         </div>
       </div>
 
+
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/5 px-5 py-3" style={{ background: '#0B1220' }}>
         <div className="flex items-center gap-4">
-          <div>
-            <h1 className="text-xl font-black text-white">{stock.symbol}</h1>
-            <p className="text-[10px] font-semibold text-slate-500">
-              {stock.name} · {String(assetType).toUpperCase() === 'CRYPTO' ? 'Crypto · USD' : `${stock.exchange} · Equity · INR`}
-            </p>
+          <div className="flex flex-col">
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-black text-white">{stock.symbol}</h1>
+              <span className={`px-2 py-1 rounded text-[10px] font-bold tracking-wider flex items-center gap-1.5 ${assetMeta.badgeColor}`}>
+                <span className="text-sm">{assetMeta.icon}</span>
+                {assetMeta.type.toUpperCase()}
+              </span>
+            </div>
+            <div className="text-[11px] font-semibold text-slate-500 flex items-center gap-2 mt-1">
+               <span>{stock.name}</span>
+               <span>·</span>
+               <span>{assetMeta.exchange}</span>
+               <span>·</span>
+               <span>{assetMeta.currency}</span>
+            </div>
           </div>
           <div className={`flex items-center gap-1.5 text-2xl font-black ${pos ? 'text-emerald-400' : 'text-rose-400'}`}>
             {pos ? <TrendingUp size={20} /> : <TrendingDown size={20} />}
@@ -565,6 +563,28 @@ export default function TraderStockPage({ overrideSymbol, onBack }) {
           {[['Vol', stock.volume], ['ATR', stock.atr], ['Range', stock.dayRange], ['Sentiment', stock.sentiment]].map(([l, v]) => (
             <div key={l}><span className="text-slate-600">{l}: </span><span className="text-slate-200">{v}</span></div>
           ))}
+        </div>
+
+        {/* ── Watchlist button ── */}
+        <div className="flex items-center gap-3">
+          {watchlistMsg && (
+            <span className={`text-[11px] font-bold px-3 py-1 rounded-full ${
+              watchlistMsg.includes('Added') ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/25'
+              : watchlistMsg.includes('Removed') ? 'bg-rose-500/15 text-rose-300 border border-rose-500/25'
+              : 'bg-amber-500/15 text-amber-300 border border-amber-500/25'
+            }`}>{watchlistMsg}</span>
+          )}
+          <button
+            onClick={handleWatchlistToggle}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[12px] font-bold border transition-all ${
+              isInWatchlist
+                ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30 hover:bg-rose-500/15 hover:text-rose-300 hover:border-rose-500/30'
+                : 'bg-white/5 text-slate-300 border-white/10 hover:bg-emerald-500/15 hover:text-emerald-300 hover:border-emerald-500/30'
+            }`}
+          >
+            {isInWatchlist ? <BookmarkCheck size={14} /> : <Bookmark size={14} />}
+            {isInWatchlist ? 'In Watchlist' : '+ Watchlist'}
+          </button>
         </div>
       </div>
 
@@ -585,7 +605,7 @@ export default function TraderStockPage({ overrideSymbol, onBack }) {
                   <div>
                     <div className="text-xs font-bold text-white">{w.symbol}</div>
                     <div className="text-[10px] text-slate-500">
-                      {String(assetType).toUpperCase() === 'CRYPTO' ? 'CRYPTO' : 'NSE'}
+                      {getAssetMetadata(w.symbol).type}
                     </div>
                   </div>
                   <div className="text-right">
@@ -618,7 +638,7 @@ export default function TraderStockPage({ overrideSymbol, onBack }) {
 
               <div className="overflow-hidden rounded-2xl" style={{ background: '#0B1220', boxShadow: '0 20px 60px rgba(0,0,0,0.8),0 0 0 1px rgba(255,255,255,0.04)' }}>
                 <div className="flex overflow-x-auto border-b border-white/5" style={{ scrollbarWidth: 'none' }}>
-                  {TABS.map((t) => (
+                  {TABS.filter(t => t !== 'Fundamentals' || assetMeta.type === 'Equity').map((t) => (
                     <button
                       key={t}
                       onClick={() => setTab(t)}
@@ -633,7 +653,7 @@ export default function TraderStockPage({ overrideSymbol, onBack }) {
                   {tab === 'Insights' && <InsightsSection techData={techData} />}
                   {tab === 'Activity' && <ActivitySection techData={techData} />}
                   {tab === 'Performance' && <PerformanceSection stock={stock} techData={techData} />}
-                  {tab === 'Fundamentals' && <FundamentalsSection stockDetails={stockDetails} />}
+                  {tab === 'Fundamentals' && <FundamentalsSection symbol={symbol} />}
                 </div>
               </div>
             </div>

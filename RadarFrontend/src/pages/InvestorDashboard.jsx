@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from "react";
-import { useNavigate, Link, Navigate } from "react-router-dom";
+import { useNavigate, useParams, Link } from "react-router-dom";
 import YourInvestments from '../components/investor/YourInvestments';
 import MostBoughtStocks from '../components/investor/MostBoughtStocks';
 import SharedTickerTape from '../components/landing/TickerTape';
@@ -7,6 +7,7 @@ import Watchlist from '../components/investor/Watchlist';
 import Screeners from '../components/investor/Screeners';
 import Header from '../components/common/Header';
 import LearningAcademy from './LearningAcademy';
+import { ProfilePage } from './ContractPages';
 
 import {
     LayoutDashboard,
@@ -51,9 +52,10 @@ import {
 
 import "./InvestorDashboard.css";
 import { fetchDiscoveryShelves, fetchMarketMood, fetchValuation } from "../api/fundamentalApi";
-import { fetchSectorPerformance, fetchMarketData, fetchTrendingSearches, logSearchQuery, fetchMarketNews, fetchNewsInsight } from "../api/marketApi";
+import { fetchSectorPerformance, fetchMarketData, fetchTrendingSearches, logSearchQuery, fetchMarketNews } from "../api/marketApi";
 import { fetchEconomicCalendar } from "../api/calendarApi";
 import { updateUserMode } from "../api/userApi";
+import { fetchUserWatchlist } from "../api/watchlistApi";
 import { useHeaderData } from "../hooks/useHeaderData";
 import { useSocket } from "../hooks/useSocket";
 import { formatPrice } from "../utils/currency";
@@ -144,8 +146,13 @@ const themes = {
 };
 
 const InvestorMode = ({ onToggleMode }) => {
-    const [activeModule, setActiveModule] = useState("DASHBOARD");
-    const [showDataNotice, setShowDataNotice] = useState(true);
+    const params = useParams();
+    const routeModule = String(params?.module || '').trim().toUpperCase();
+    const [activeModule, setActiveModule] = useState(routeModule || "DASHBOARD");
+
+    useEffect(() => {
+        setActiveModule(routeModule || "DASHBOARD");
+    }, [routeModule]);
 
     useEffect(() => {
         const currentTheme = 'blue';
@@ -181,22 +188,6 @@ const InvestorMode = ({ onToggleMode }) => {
                 onToggleMode={onToggleMode}
             />
             <SharedTickerTape variant="investor" />
-            
-            {showDataNotice && (
-                <div className="w-[96%] max-w-[1500px] mx-auto mt-4 mb-2 bg-amber-50/80 backdrop-blur-sm border border-amber-200/60 rounded-xl px-4 py-2.5 flex items-center justify-between shadow-sm relative z-[100] animate-in fade-in slide-in-from-top-4">
-                    <div className="flex items-center gap-2.5 text-amber-800">
-                        <AlertTriangle size={14} className="text-amber-600 shrink-0" />
-                        <span className="text-[11px] font-medium leading-tight">
-                            <b className="font-black">Data Disclaimer:</b> Market values and metrics may show slight discrepancies compared to direct exchange feeds due to our current data provider (Yahoo Finance) aggregation delays.
-                        </span>
-                    </div>
-                    <button onClick={() => setShowDataNotice(false)} className="text-amber-600/60 hover:text-amber-800 p-1 rounded-md hover:bg-amber-100/50 transition-colors">
-                        <span className="sr-only">Dismiss</span>
-                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                    </button>
-                </div>
-            )}
-
             <main className="content fade-in transition-all duration-300">
                 <InvestorView activeModule={activeModule} setActiveModule={setActiveModule} />
             </main>
@@ -550,7 +541,7 @@ const GlobalPulse = () => {
                 {pulse.map((m, i) => (
                     <div
                         key={i}
-                        onClick={() => navigate('/investor/advanced-charts?symbol=' + encodeURIComponent(m.name.toUpperCase().replace(/\.(NS|BO)$/i, '')))}
+                        onClick={() => navigate('/investor-stock/' + encodeURIComponent(m.name.toUpperCase()))}
                         className="flex justify-between items-center group cursor-pointer hover:bg-slate-50/50 p-2 -mx-2 rounded-xl transition-all"
                     >
                         <div className="flex items-center gap-3">
@@ -1365,32 +1356,9 @@ const RegionFilter = ({ active, onChange }) => {
 
 const NewsCard = ({ item, isInitiallyExpanded = false }) => {
     const [isExpanded, setIsExpanded] = useState(isInitiallyExpanded);
-    const [insight, setInsight] = useState(null);
-    const [isLoadingInsight, setIsLoadingInsight] = useState(false);
-
-    useEffect(() => {
-        if (isExpanded && !insight && !item.whatHappened) {
-            let isMounted = true;
-            setIsLoadingInsight(true);
-            fetchNewsInsight(item.title, item.summary || item.description)
-                .then(data => {
-                    if (isMounted) {
-                        setInsight(data);
-                        setIsLoadingInsight(false);
-                    }
-                })
-                .catch(err => {
-                    if (isMounted) {
-                        setIsLoadingInsight(false);
-                    }
-                });
-            return () => { isMounted = false; };
-        }
-    }, [isExpanded, insight, item]);
-
-    const impact = insight?.impact || item.impact || "Neutral";
+    const impact = item.impact || "Neutral";
     const importance = item.importance || "Normal";
-    const sectors = insight?.sectors || item.sectors || item.affectedSectors || [];
+    const sectors = item.sectors || item.affectedSectors || [];
     const tags = item.tags || [];
 
     return (
@@ -1465,6 +1433,14 @@ const NewsCard = ({ item, isInitiallyExpanded = false }) => {
                             {item.category || "General"}
                         </span>
 
+                        {/* Watchlist Symbol Tag — shown only in watchlist mode */}
+                        {item.affectedSymbol && (
+                            <span className="px-2.5 py-1 text-[10px] font-black uppercase tracking-wider rounded-md bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1">
+                                <Star size={9} className="fill-amber-500 text-amber-500" />
+                                {item.affectedSymbol}
+                            </span>
+                        )}
+
                         {/* Stock Snippets if available */}
                         {(item.affectedStocks || []).length > 0 && <div className="h-3 w-[1px] bg-slate-200 mx-1"></div>}
                         <div className="flex items-center gap-2.5">
@@ -1507,12 +1483,7 @@ const NewsCard = ({ item, isInitiallyExpanded = false }) => {
                                     <span className="text-[11px] font-black text-slate-500 uppercase tracking-widest">WHAT HAPPENED</span>
                                 </div>
                                 <p className="text-[16px] text-slate-800 font-medium leading-relaxed pl-5 tracking-tight">
-                                    {isLoadingInsight ? (
-                                        <span className="flex items-center gap-2 text-slate-400">
-                                            <div className="w-3 h-3 rounded-full border-2 border-blue-400 border-t-transparent animate-spin"></div>
-                                            Generating AI insight...
-                                        </span>
-                                    ) : (insight?.whatHappened || item.whatHappened || "Processing core event details...")}
+                                    {item.whatHappened || "Processing core event details..."}
                                 </p>
                             </div>
 
@@ -1522,9 +1493,7 @@ const NewsCard = ({ item, isInitiallyExpanded = false }) => {
                                     <span className="text-[11px] font-black text-slate-500 uppercase tracking-widest">WHY IT MATTERS</span>
                                 </div>
                                 <p className="text-[15px] text-slate-700 font-medium leading-relaxed pl-5 tracking-tight">
-                                    {isLoadingInsight ? (
-                                        <span className="text-slate-400">...</span>
-                                    ) : (insight?.whyItMatters || item.whyItMatters || "Strategic implications for current portfolio positions.")}
+                                    {item.whyItMatters || "Strategic implications for current portfolio positions."}
                                 </p>
                             </div>
 
@@ -1600,16 +1569,21 @@ const NewsCard = ({ item, isInitiallyExpanded = false }) => {
 
 
 const InvestorNewsFeed = () => {
-    // Remove static mock data - now strictly live-only
+    const [region, setRegion] = useState("India");
+    // Cache keyed by region so India and Global news don't overwrite each other
     const [rawNews, setRawNews] = useState(() => {
-        const cached = localStorage.getItem('radar_investor_news');
+        const cached = localStorage.getItem('radar_investor_news_v2_india_stocks');
         return cached ? JSON.parse(cached) : [];
     });
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
     const [selectedCategories, setSelectedCategories] = useState([]);
     const [assetClass, setAssetClass] = useState("Stocks");
-    const [region, setRegion] = useState("India");
+    const [isWatchlistOnly, setIsWatchlistOnly] = useState(false);
+
+    // Cache key per region+assetClass — v2 busts old uncategorised cache entries
+    const cacheKey = `radar_investor_news_v2_${region.toLowerCase()}_${assetClass.toLowerCase()}`;
+
     // Toggle multi-select category logic
     const toggleCategory = (cat) => {
         if (cat === "All") {
@@ -1630,19 +1604,11 @@ const InvestorNewsFeed = () => {
 
         // 1. Filter by categories (OR logic as requested)
         if (selectedCategories.length > 0) {
-            filtered = filtered.filter(item => {
-                const text = `${item.title} ${item.summary} ${item.category || ''}`.toLowerCase();
-                return selectedCategories.some(cat => {
-                    const c = cat.toLowerCase();
-                    if (item.category && item.category.toLowerCase() === c) return true;
-                    if (c === 'earnings') return text.includes('earning') || text.includes('profit') || text.includes('revenue') || text.includes('q1') || text.includes('q2') || text.includes('q3') || text.includes('q4');
-                    if (c === 'deals') return text.includes('deal') || text.includes('merger') || text.includes('acquisition') || text.includes('buyout') || text.includes('stake');
-                    if (c === 'policy') return text.includes('policy') || text.includes('fed') || text.includes('rate') || text.includes('bank') || text.includes('rbi') || text.includes('central');
-                    if (c === 'macro') return text.includes('macro') || text.includes('inflation') || text.includes('cpi') || text.includes('gdp') || text.includes('economy') || text.includes('jobs');
-                    if (c === 'ipo') return text.includes('ipo') || text.includes('public offering') || text.includes('listing');
-                    return text.includes(c);
-                });
-            });
+            filtered = filtered.filter(item =>
+                selectedCategories.some(cat =>
+                    item.category?.toLowerCase() === cat.toLowerCase()
+                )
+            );
         }
 
         // 2. Maintain strict chronological sorting (Latest First)
@@ -1662,20 +1628,63 @@ const InvestorNewsFeed = () => {
             setIsLoading(true);
             setError(null);
 
-            // To support robust frontend filtering, we fetch a broader set of news (All Category)
-            const data = await fetchMarketNews({
-                category: "all",
-                region: region.toLowerCase(),
-                assetClass: assetClass.toLowerCase(),
-            });
+            let data;
 
-            if (data && Array.isArray(data)) {
-                if (data.length > 0) {
-                    const processed = data.map(item => ({ ...item, isToday: true }));
-                    setRawNews(processed);
-                    localStorage.setItem('radar_investor_news', JSON.stringify(processed));
-                } else {
+            if (isWatchlistOnly) {
+                // --- WATCHLIST MODE: fetch per-symbol news and merge ---
+                const symbols = await fetchUserWatchlist();
+
+                if (!symbols.length) {
+                    // Empty watchlist — show friendly empty state
                     setRawNews([]);
+                    setError("Your watchlist is empty. Add stocks to see watchlist-specific news.");
+                    data = [];
+                } else {
+                    // Fire parallel requests for each symbol (cap at 5 to avoid rate limits)
+                    const top5 = symbols.slice(0, 5);
+                    const results = await Promise.allSettled(
+                        top5.map(sym =>
+                            fetchMarketNews({ symbol: sym, limit: 4 })
+                        )
+                    );
+
+                    // Merge all articles, tag with symbol, deduplicate by title
+                    const seen = new Set();
+                    const merged = [];
+                    results.forEach((res, idx) => {
+                        if (res.status === 'fulfilled' && Array.isArray(res.value)) {
+                            res.value.forEach(article => {
+                                const key = article.title?.toLowerCase().trim();
+                                if (key && !seen.has(key)) {
+                                    seen.add(key);
+                                    merged.push({
+                                        ...article,
+                                        isToday: true,
+                                        affectedSymbol: top5[idx],
+                                    });
+                                }
+                            });
+                        }
+                    });
+                    data = merged;
+                }
+            } else {
+                // --- NORMAL MODE: fetch regional/asset news with higher limit ---
+                data = await fetchMarketNews({
+                    category: "all",
+                    region: region.toLowerCase(),
+                    assetClass: assetClass.toLowerCase(),
+                    limit: 15,
+                });
+            }
+
+
+            if (data && Array.isArray(data) && data.length > 0) {
+                const processed = data.map(item => ({ ...item, isToday: true }));
+                setRawNews(processed);
+                if (!isWatchlistOnly) {
+                    // Only cache non-watchlist results (watchlist changes frequently)
+                    localStorage.setItem(cacheKey, JSON.stringify(processed));
                 }
             } else if (!rawNews.length) {
                 // High-fidelity fallback if everything fails and no cache
@@ -1708,9 +1717,11 @@ const InvestorNewsFeed = () => {
     };
 
     useEffect(() => {
-        // Automatically fetch fresh news when critical backend filters change
+        // Clear stale news from previous region immediately, then fetch fresh
+        const regionCache = localStorage.getItem(cacheKey);
+        setRawNews(regionCache ? JSON.parse(regionCache) : []);
         loadNews();
-    }, [region, assetClass]);
+    }, [region, assetClass, isWatchlistOnly]);
 
     return (
         <div className="flex flex-col w-full">
@@ -1775,12 +1786,22 @@ const InvestorNewsFeed = () => {
                                     <RefreshCw size={13} className={isLoading ? "animate-spin" : ""} />
                                     <span>{isLoading ? "Refreshing..." : "Refresh Feed"}</span>
                                 </button>
-
+                                <button
+                                    onClick={() => setIsWatchlistOnly(!isWatchlistOnly)}
+                                    className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-[11px] font-black border transition-all outline-none ${isWatchlistOnly
+                                            ? "bg-amber-100 border-amber-300 text-amber-700 shadow-md"
+                                            : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+                                        }`}
+                                >
+                                    <Star size={13} className={isWatchlistOnly ? "text-amber-600 fill-amber-500" : "text-amber-400"} />
+                                    <span>Watchlist</span>
+                                </button>
                                 <button
                                     onClick={() => {
                                         setSelectedCategories([]);
                                         setAssetClass("Stocks");
                                         setRegion("India");
+                                        setIsWatchlistOnly(false);
                                     }}
                                     className="flex items-center gap-2 px-3.5 py-1.5 bg-white text-slate-700 rounded-lg text-[11px] font-black border border-slate-200 hover:bg-slate-50 transition-all outline-none"
                                 >
@@ -1854,6 +1875,10 @@ function InvestorView({ activeModule, setActiveModule }) {
 
     if (activeModule === 'WATCHLIST') {
         return <Watchlist />;
+    }
+
+    if (activeModule === 'PROFILE') {
+        return <ProfilePage embedded />;
     }
 
     if (activeModule === 'SCREENERS') {

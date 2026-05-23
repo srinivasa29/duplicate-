@@ -24,9 +24,11 @@ export default function Login() {
     onSuccess: async (tokenResponse) => {
       try {
         setLoading(true);
-        const res = await api.post('/auth/google', { token: tokenResponse.credential || tokenResponse.access_token });
-        localStorage.setItem('token', res.data.token);
-        window.location.href = '/dashboard';
+      const res = await api.post('/auth/google', { token: tokenResponse.credential || tokenResponse.access_token, isSignup: false });
+      localStorage.setItem('token', res.data.token);
+      localStorage.setItem('userEmail', res.data.email || '');
+      localStorage.setItem('user', JSON.stringify({ username: res.data.username, email: res.data.email }));
+      window.location.href = '/dashboard';
       } catch (error) {
         setLoading(false);
         setErrors({ general: error.response?.data?.error || 'Google Login Failed' });
@@ -58,6 +60,8 @@ export default function Login() {
       });
 
       localStorage.setItem('token', res.data.token);
+      localStorage.setItem('userEmail', res.data.email || identifier);
+      localStorage.setItem('user', JSON.stringify({ username: res.data.username, email: res.data.email || identifier }));
       window.location.href = '/dashboard';
     } catch (error) {
       setLoading(false);

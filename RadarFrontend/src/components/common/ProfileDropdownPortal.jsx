@@ -100,7 +100,7 @@ const ProfileDropdownPortal = ({
 
   const handleSelectMode = (nextMode) => {
     setMode(nextMode);
-    navigate(nextMode === "investor" ? "/dashboard/investor" : "/dashboard/trader");
+    navigate(nextMode === "investor" ? "/investor/dashboard" : "/trader/dashboard");
     onClose();
   };
 

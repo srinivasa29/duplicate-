@@ -1,0 +1,60 @@
+version: '3.9'
+
+services:
+  # ── RADAR Backend API ───────────────────────────────────────────────────────
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runner
+    image: radar-backend:${IMAGE_TAG:-latest}
+    container_name: radar-backend
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    # Load ALL variables from .env automatically
+    env_file:
+      - .env
+    # Override / add variables that differ in production
+    environment:
+      NODE_ENV: production
+      PORT_STRICT: "true"
+      PORT_AUTO_FALLBACK: "false"
+      # Redis sidecar — this is missing from the .env file
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - backend-logs:/app/logs
+    networks:
+      - radar-net
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:5000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  # ── Redis — news cache + real-time pub/sub ──────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: radar-redis
+    restart: unless-stopped
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru --save ""
+    networks:
+      - radar-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  backend-logs:
+    driver: local
+
+networks:
+  radar-net:
+    driver: bridge
+

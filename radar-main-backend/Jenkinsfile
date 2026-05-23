@@ -1,0 +1,147 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// RADAR Backend — Jenkinsfile
+// Pipeline: Build Docker Image → Push to ECR → Deploy on EC2 via SSH
+// ─────────────────────────────────────────────────────────────────────────────
+
+pipeline {
+    agent any
+
+    // ── Trigger: run on every push to main ───────────────────────────────────
+    triggers {
+        githubPush()
+    }
+
+    environment {
+        // AWS settings — set these in Jenkins → Manage Jenkins → Credentials
+        AWS_REGION          = 'ap-south-1'                     // Mumbai (closest to India)
+        AWS_ACCOUNT_ID      = credentials('AWS_ACCOUNT_ID')    // stored as Jenkins secret
+        ECR_REPO_NAME       = 'radar-backend'
+        ECR_REGISTRY        = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+        IMAGE_NAME          = "${ECR_REGISTRY}/${ECR_REPO_NAME}"
+        IMAGE_TAG           = "${env.GIT_COMMIT?.take(7) ?: 'latest'}"
+
+        // EC2 deploy target — set in Jenkins credentials
+        EC2_HOST            = credentials('EC2_HOST')          // e.g. ec2-user@13.235.x.x
+        EC2_SSH_KEY         = credentials('EC2_SSH_KEY')       // PEM key as Jenkins SSH credential
+    }
+
+    options {
+        buildDiscarder(logRotator(numToKeepStr: '10'))
+        timeout(time: 20, unit: 'MINUTES')
+        disableConcurrentBuilds()
+    }
+
+    stages {
+
+        // ── Stage 1: Checkout ─────────────────────────────────────────────────
+        stage('Checkout') {
+            steps {
+                checkout scm
+                echo "🔀 Building commit ${env.GIT_COMMIT?.take(7)} on branch ${env.BRANCH_NAME}"
+            }
+        }
+
+        // ── Stage 2: Docker Build ─────────────────────────────────────────────
+        stage('Docker Build') {
+            steps {
+                dir('radar-main-backend') {
+                    script {
+                        echo "🐳 Building Docker image: ${IMAGE_NAME}:${IMAGE_TAG}"
+                        sh """
+                            docker build \
+                                --target runner \
+                                --cache-from ${IMAGE_NAME}:latest \
+                                -t ${IMAGE_NAME}:${IMAGE_TAG} \
+                                -t ${IMAGE_NAME}:latest \
+                                .
+                        """
+                    }
+                }
+            }
+        }
+
+        // ── Stage 3: Push to ECR ──────────────────────────────────────────────
+        stage('Push to ECR') {
+            steps {
+                withCredentials([[
+                    $class: 'AmazonWebServicesCredentialsBinding',
+                    credentialsId: 'aws-credentials',
+                    accessKeyVariable: 'AWS_ACCESS_KEY_ID',
+                    secretKeyVariable: 'AWS_SECRET_ACCESS_KEY'
+                ]]) {
+                    sh """
+                        echo "🔐 Logging into ECR..."
+                        aws ecr get-login-password --region ${AWS_REGION} | \
+                            docker login --username AWS --password-stdin ${ECR_REGISTRY}
+
+                        echo "📦 Creating ECR repository if not exists..."
+                        aws ecr describe-repositories \
+                            --repository-names ${ECR_REPO_NAME} \
+                            --region ${AWS_REGION} > /dev/null 2>&1 || \
+                        aws ecr create-repository \
+                            --repository-name ${ECR_REPO_NAME} \
+                            --region ${AWS_REGION}
+
+                        echo "⬆️  Pushing images..."
+                        docker push ${IMAGE_NAME}:${IMAGE_TAG}
+                        docker push ${IMAGE_NAME}:latest
+                    """
+                }
+            }
+        }
+
+        // ── Stage 4: Deploy to EC2 ────────────────────────────────────────────
+        stage('Deploy to EC2') {
+            steps {
+                sshagent(credentials: ['EC2_SSH_KEY']) {
+                    sh """
+                        echo "🚀 Deploying to EC2..."
+                        ssh -o StrictHostKeyChecking=no ${EC2_HOST} << 'ENDSSH'
+                            set -e
+
+                            # Login to ECR on the remote host
+                            aws ecr get-login-password --region ${AWS_REGION} | \
+                                docker login --username AWS --password-stdin ${ECR_REGISTRY}
+
+                            # Pull the latest image
+                            docker pull ${IMAGE_NAME}:${IMAGE_TAG}
+
+                            # Navigate to deploy directory
+                            cd ~/radar-backend
+
+                            # Update IMAGE_TAG in .env for compose
+                            sed -i "s|^IMAGE_TAG=.*|IMAGE_TAG=${IMAGE_TAG}|" .env || \
+                                echo "IMAGE_TAG=${IMAGE_TAG}" >> .env
+
+                            # Zero-downtime restart: bring up new container, remove old
+                            docker compose pull
+                            docker compose up -d --remove-orphans --force-recreate backend
+
+                            # Prune dangling images to save disk space
+                            docker image prune -f
+
+                            echo "✅ Deploy complete. Running containers:"
+                            docker ps --format 'table {{.Names}}\\t{{.Status}}\\t{{.Ports}}'
+ENDSSH
+                    """
+                }
+            }
+        }
+    }
+
+    // ── Post actions ──────────────────────────────────────────────────────────
+    post {
+        success {
+            echo "✅ Pipeline succeeded — ${IMAGE_NAME}:${IMAGE_TAG} is live."
+        }
+        failure {
+            echo "❌ Pipeline failed. Check logs above."
+            // Add Slack/email notification here if needed:
+            // slackSend channel: '#radar-deploys', message: "❌ Deploy FAILED: ${env.BUILD_URL}"
+        }
+        always {
+            // Clean up local Docker images to save Jenkins disk space
+            sh "docker rmi ${IMAGE_NAME}:${IMAGE_TAG} || true"
+        }
+    }
+}

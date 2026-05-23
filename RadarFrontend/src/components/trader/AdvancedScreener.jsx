@@ -276,28 +276,40 @@ const AdvancedScreener = () => {
 
                 const payload = { filters: backendFilters, limit: 50 };
 
-                const data = await runScreenerScan(payload);
+                const raw = await runScreenerScan(payload);
                 if (!active) return;
-                const rows = data?.results ?? data?.stocks ?? (Array.isArray(data) ? data : []);
+                // Backend wraps: { success, data: { results: [...] } }
+                // Handle both wrapped and unwrapped shapes
+                const inner = raw?.data ?? raw;
+                const rows = inner?.results ?? inner?.stocks ?? (Array.isArray(inner) ? inner : []);
                 
-                // Even if empty, clear previous results
                 setResults(rows.map((s, i) => ({
-                    id: (s.symbol || s.ticker || s.id || `r-${i}`).replace(/\.(NS|BO)$/i, ''),
-                    name: s.name || s.companyName || s.displaySymbol || s.symbol || '',
-                    price: s.price != null ? `₹${Number(s.price).toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '—',
-                    change: s.change != null ? `${Number(s.change) >= 0 ? '+' : ''}${Number(s.change).toFixed(2)}%` : '0.00%',
+                    id: (s.displaySymbol || s.symbol || s.ticker || `r-${i}`).replace(/\.(NS|BO)$/i, ''),
+                    name: s.name || s.displaySymbol || s.symbol || '',
+                    price: (s.price != null && s.price !== 0)
+                        ? `₹${Number(s.price).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
+                        : '—',
+                    change: s.change != null
+                        ? `${Number(s.change) >= 0 ? '+' : ''}${Number(s.change).toFixed(2)}%`
+                        : '0.00%',
                     isPositive: Number(s.change ?? 0) >= 0,
-                    mcap: s.marketCapNumeric ? `₹${(s.marketCapNumeric / 1e12).toFixed(1)}T` : (s.marketCap || '—'),
+                    mcap: s.marketCapNumeric
+                        ? `₹${(s.marketCapNumeric / 1e12).toFixed(2)}T`
+                        : (s.marketCap || '—'),
                     sector: s.sector || 'Equity',
-                    why: s.why || s.signal || s.reason || 'Matched screener criteria.',
-                    tags: s.tags || [s.sector || 'Equity'].filter(Boolean),
-                    confidence: Number(s.confidence ?? s.score ?? 80),
+                    why: s.why || s.reason || 'Matched screener criteria.',
+                    tags: Array.isArray(s.tags) && s.tags.length
+                        ? s.tags
+                        : [s.sector || 'Equity', s.signal || s.bias || 'equity'].filter(Boolean),
+                    confidence: Number(s.confidence ?? s.score ?? 75),
                     yield: s.dividendYield ? `${s.dividendYield}%` : '—',
                     beta: Number(s.beta ?? 1),
                     volume: s.volume ? `${(Number(s.volume) / 1e6).toFixed(1)}M` : '—',
                     pe: Number(s.pe ?? 0),
-                    roe: s.roe ? `${s.roe}%` : '—',
-                    trend: s.trend || Array.from({ length: 5 }, (_, k) => Number(s.price ?? 100) * (1 + (k - 2) * 0.01)),
+                    roe: s.roe ? `${Number(s.roe).toFixed(1)}%` : '—',
+                    trend: s.trend || Array.from({ length: 5 }, (_, k) =>
+                        Number(s.price || 100) * (1 + (k - 2) * 0.01)
+                    ),
                 })));
             } catch (err) {
                 console.warn('AdvancedScreener scan failed:', err.message);

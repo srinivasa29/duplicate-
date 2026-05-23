@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { useNavigate, Navigate } from "react-router-dom";
+import { useState, useEffect, useContext } from "react";
+import { useNavigate } from "react-router-dom";
 import { Activity, Maximize2, TrendingDown, TrendingUp, Search, Newspaper, Globe, Zap, ExternalLink, Monitor } from "lucide-react";
 import { motion } from "framer-motion";
 import {
@@ -22,7 +22,9 @@ import { fetchPortfolio } from "../api/portfolioApi";
 import { fetchFnoDashboard } from "../api/fnoApi";
 import { fetchMarketHistory, fetchMarketNews } from "../api/marketApi";
 import { useAsset } from "../context/AssetContext";
+import { SettingsContext } from "../context/SettingsContext";
 import SharedMultiChartGrid from "../components/trader/MultiChartGrid";
+import AdvancedTradingChart from "../components/trader/AdvancedTradingChart";
 import SharedAdvancedWatchlist from "../components/trader/AdvancedWatchlist";
 import EnhancedStockScreener from "../components/trader/EnhancedStockScreener";
 import MultiChartWorkspace from "../components/trader/MultiChartWorkspace"; // TRADINGVIEW MULTI-CHART
@@ -30,6 +32,9 @@ import RealTimeScanner from "../components/trader/RealTimeScanner"; // TRADINGVI
 import MainLayout from "../components/layout/MainLayout";
 import MarketTicker from "../components/dashboard/MarketTicker";
 import TraderStockPage from "./TraderStockPage"; 
+import TraderProfilePage from "./traderProfile/TraderProfilePage";
+import SettingsPage from "./settings/SettingsPage";
+import TraderHelpSupportPage from "./support/HelpSupportPage";
 import LearningAcademy from "./LearningAcademy";
 import "./TraderDashboard.css";
 
@@ -2384,7 +2389,7 @@ const NewsFlash = ({ variant = "full" }) => {
           </div>
         </div>
 
-        <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar px-3 py-4 space-y-3">
+        <div className="flex-1 min-h-0 max-h-[500px] overflow-y-auto custom-scrollbar px-3 py-4 space-y-3">
           {isLoading && <div className="py-8 text-center text-[#8b909a] text-xs">Loading news...</div>}
           {!isLoading && filtered.length === 0 && <div className="py-8 text-center text-[#8b909a] text-xs">No matching headlines.</div>}
           {!isLoading && filtered.map((news, i) => {
@@ -2797,60 +2802,98 @@ const ResearchToolPanel = ({ symbol: symbolProp } = {}) => {
 
 function ResearchView({ activeModule, onRequestModuleChange }) {
   const navigate = useNavigate();
+  const { settings: savedSettings } = useContext(SettingsContext);
+
   const [expandedChart, setExpandedChart] = useState(null);
-  const [timeframe, setTimeframe] = useState("15m");
+  const [timeframe, setTimeframe]         = useState("15m");
   const [showIndicators, setShowIndicators] = useState(false);
-  const [layout, setLayout] = useState("4-grid");
-  const [expandedChartData, setExpandedChartData] = useState([]);
+  const [activeIndicators, setActiveIndicators] = useState(new Set(['ma7', 'ma25']));
+  const [showIndicatorMenu, setShowIndicatorMenu] = useState(false);
+  const [layout, setLayout]               = useState("4-grid");
+  const [niftyQuote, setNiftyQuote]       = useState(null);
 
+  // Apply saved display settings once context loads
   useEffect(() => {
-    let isMounted = true;
-
-    const loadExpandedChart = async () => {
-      if (!expandedChart) {
-        if (isMounted) {
-          setExpandedChartData([]);
-        }
-        return;
-      }
-
-      try {
-        const backendSymbol = resolveBackendSymbol(expandedChart);
-        const backendInterval = BACKEND_INTERVAL_MAP[timeframe] || "1D";
-        const response = await fetchMarketHistory(backendSymbol, "STOCK", backendInterval);
-        const points = Array.isArray(response?.data) ? response.data : [];
-        if (isMounted) {
-          setExpandedChartData(
-            points
-              .map((point) => ({
-                time: new Date(point.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-                price: Number(point.close || 0),
-              }))
-              .filter((point) => Number.isFinite(point.price) && point.price > 0)
-          );
-        }
-      } catch (error) {
-        console.error("Failed to load expanded chart history:", error);
-        if (isMounted) {
-          setExpandedChartData([]);
-        }
-      }
-    };
-
-    loadExpandedChart();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [expandedChart, timeframe]);
+    if (!savedSettings?.display) return;
+    const d = savedSettings.display;
+    if (d.defaultTimeframe) setTimeframe(d.defaultTimeframe);
+    if (d.defaultLayout)    setLayout(d.defaultLayout);
+    if (typeof d.showIndicators === 'boolean') setShowIndicators(d.showIndicators);
+  }, [savedSettings]);
 
   const [analysisSymbol, setAnalysisSymbol] = useState(null);
-  // Seed with first chart symbol so the panel is useful before any click
-  const [focusedSymbol, setFocusedSymbol] = useState('RELIANCE');
+  const [focusedSymbol, setFocusedSymbol]   = useState('RELIANCE');
   const { setAsset } = useAsset();
 
+  // Fetch live NIFTY 50 quote (same API as the chart)
+  useEffect(() => {
+    let alive = true;
+    const load = async () => {
+      try {
+        const { fetchMarketHistory } = await import('../api/marketApi');
+        const res = await fetchMarketHistory('^NSEI', 'STOCK', '1D');
+        if (!alive) return;
+        const data = Array.isArray(res?.data) ? res.data : [];
+        if (data.length >= 2) {
+          const latest = data[data.length - 1];
+          const prev   = data[data.length - 2];
+          const pct = (((latest.close - prev.close) / prev.close) * 100).toFixed(2);
+          setNiftyQuote({ price: latest.close, pct, pos: parseFloat(pct) >= 0 });
+        } else if (data.length === 1) {
+          setNiftyQuote({ price: data[0].close, pct: '0.00', pos: true });
+        }
+      } catch { /* silently ignore */ }
+    };
+    load();
+    return () => { alive = false; };
+  }, []);
+
   if (activeModule === "WATCHLIST") {
-    return <Navigate to="/trader/watchlists" replace />;
+    return (
+      <MainLayout>
+        <div className="dashboard-layout flex flex-col w-full">
+          <div className="flex-1 overflow-y-auto main-content-area" style={{ padding: 0 }}>
+            <SharedAdvancedWatchlist />
+          </div>
+        </div>
+      </MainLayout>
+    );
+  }
+
+  if (activeModule === "PROFILE") {
+    return (
+      <MainLayout>
+        <div className="dashboard-layout flex flex-col w-full">
+          <div className="flex-1 overflow-y-auto main-content-area" style={{ padding: 0 }}>
+            <TraderProfilePage embedded />
+          </div>
+        </div>
+      </MainLayout>
+    );
+  }
+
+  if (activeModule === "SETTINGS") {
+    return (
+      <MainLayout>
+        <div className="dashboard-layout flex flex-col w-full">
+          <div className="flex-1 overflow-y-auto main-content-area" style={{ padding: 0 }}>
+            <SettingsPage embedded />
+          </div>
+        </div>
+      </MainLayout>
+    );
+  }
+
+  if (activeModule === "SUPPORT") {
+    return (
+      <MainLayout>
+        <div className="dashboard-layout flex flex-col w-full">
+          <div className="flex-1 overflow-y-auto main-content-area" style={{ padding: 0 }}>
+            <TraderHelpSupportPage embedded />
+          </div>
+        </div>
+      </MainLayout>
+    );
   }
 
   if (analysisSymbol) {
@@ -2942,7 +2985,15 @@ function ResearchView({ activeModule, onRequestModuleChange }) {
                     <div className="workspace-title">
                       <span className="workspace-label">Multi-Chart Workspace</span>
                       <span className="workspace-symbol">
-                        NIFTY 50 <span className="text-[#42C0A5]">18,500 +0.52%</span>
+                        NIFTY 50{' '}
+                        {niftyQuote ? (
+                          <span className={niftyQuote.pos ? 'text-[#42C0A5]' : 'text-red-400'}>
+                            {niftyQuote.price.toLocaleString('en-IN', { maximumFractionDigits: 2 })}{' '}
+                            {niftyQuote.pos ? '+' : ''}{niftyQuote.pct}%
+                          </span>
+                        ) : (
+                          <span className="text-white/30 text-xs">Loading…</span>
+                        )}
                       </span>
                     </div>
                     <div className="workspace-controls">
@@ -2955,12 +3006,47 @@ function ResearchView({ activeModule, onRequestModuleChange }) {
                           {tf.toUpperCase()}
                         </button>
                       ))}
-                      <button
-                        onClick={() => setShowIndicators(!showIndicators)}
-                        className={`workspace-chip ${showIndicators ? "active" : ""}`}
-                      >
-                        Indicators
-                      </button>
+                      <div className="relative">
+                        <button
+                          onClick={() => setShowIndicatorMenu(v => !v)}
+                          className={`workspace-chip ${activeIndicators.size > 0 ? "active" : ""}`}
+                        >
+                          Indicators {activeIndicators.size > 0 && `(${activeIndicators.size})`}
+                        </button>
+                        {showIndicatorMenu && (
+                          <div
+                            className="absolute top-full right-0 mt-1 z-50 bg-[#0f1520] border border-white/10 rounded-xl shadow-2xl p-2 min-w-[160px]"
+                            onMouseLeave={() => setShowIndicatorMenu(false)}
+                          >
+                            {[
+                              { id: 'ma7',  label: 'MA 7',      color: '#FFA500' },
+                              { id: 'ma25', label: 'MA 25',     color: '#FF1493' },
+                              { id: 'vwap', label: 'VWAP',      color: '#60a5fa' },
+                              { id: 'bb',   label: 'Bollinger', color: '#a78bfa' },
+                              { id: 'rsi',  label: 'RSI (14)',  color: '#34d399' },
+                            ].map(ind => (
+                              <button
+                                key={ind.id}
+                                onClick={() => setActiveIndicators(prev => {
+                                  const next = new Set(prev);
+                                  next.has(ind.id) ? next.delete(ind.id) : next.add(ind.id);
+                                  return next;
+                                })}
+                                className="flex items-center gap-2 w-full px-3 py-1.5 rounded-lg hover:bg-white/5 transition-colors text-left"
+                              >
+                                <div className="w-2.5 h-2.5 rounded-full border-2 flex items-center justify-center"
+                                  style={{ borderColor: ind.color, backgroundColor: activeIndicators.has(ind.id) ? ind.color : 'transparent' }}
+                                >
+                                  {activeIndicators.has(ind.id) && <div className="w-1 h-1 rounded-full bg-[#0f1520]" />}
+                                </div>
+                                <span className="text-xs font-mono" style={{ color: activeIndicators.has(ind.id) ? ind.color : '#9ca3af' }}>
+                                  {ind.label}
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                       <button
                         onClick={() => {
                           const layouts = ["1-grid", "2-grid", "4-grid"];
@@ -2984,7 +3070,8 @@ function ResearchView({ activeModule, onRequestModuleChange }) {
                       }
                     }}
                     timeframe={timeframe}
-                    showIndicators={showIndicators}
+                    activeIndicators={activeIndicators}
+                    showGridLines={savedSettings?.display?.showGridLines ?? true}
                     layout={layout}
                   />
                 </section>
@@ -3060,71 +3147,44 @@ function ResearchView({ activeModule, onRequestModuleChange }) {
 
 
       {expandedChart && (
-        <div
-          className="chart-modal-backdrop"
-          onClick={() => setExpandedChart(null)}
-        >
+        <>
+          {/* Backdrop — fixed, full viewport, click to close */}
           <div
-            className="chart-modal"
-            role="dialog"
-            aria-modal="true"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="chart-modal-panel">
-            <div className="chart-modal-header">
-              <div className="chart-modal-title">
-                {expandedChart} - Full Screen
-              </div>
-              <button
-                className="chart-modal-close"
-                onClick={() => setExpandedChart(null)}
-              >
-                Close
-              </button>
-            </div>
-            <div className="chart-modal-body">
-              {expandedChartData.length === 0 ? (
-                <div className="h-full w-full flex items-center justify-center text-sm text-[#9194a2] font-mono uppercase tracking-wider">
-                  No backend chart data
+            className="chart-modal-backdrop"
+            onClick={() => setExpandedChart(null)}
+          />
+          {/* Centering shell */}
+          <div className="chart-modal">
+            <div
+              className="chart-modal-panel"
+              role="dialog"
+              aria-modal="true"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="chart-modal-header">
+                <div className="chart-modal-title">
+                  {expandedChart} — Full Screen
                 </div>
-              ) : (
-                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
-                <AreaChart data={expandedChartData}>
-                  <defs>
-                    <linearGradient id="modalGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#42C0A5" stopOpacity={0.25} />
-                      <stop offset="95%" stopColor="#42C0A5" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: "#0f141f",
-                      border: "1px solid #2a2e39",
-                      fontSize: "12px",
-                      color: "#d1d4dc",
-                    }}
-                    itemStyle={{ color: "#d1d4dc" }}
-                    labelStyle={{ color: "#8b909a" }}
-                  />
-                  <XAxis dataKey="time" stroke="#2a2e39" tick={{ fill: "#8b909a", fontSize: 11 }} />
-                  <YAxis stroke="#2a2e39" tick={{ fill: "#8b909a", fontSize: 11 }} domain={["auto", "auto"]} />
-                  <Area
-                    type="monotone"
-                    dataKey="price"
-                    stroke="#42C0A5"
-                    fill="url(#modalGrad)"
-                    strokeWidth={2}
-                    isAnimationActive={false}
-                  />
-                  <CartesianGrid stroke="#1f2633" strokeDasharray="3 3" vertical={false} />
-                </AreaChart>
-              </ResponsiveContainer>
-              )}
+                <button
+                  className="chart-modal-close"
+                  onClick={() => setExpandedChart(null)}
+                >
+                  Close
+                </button>
+              </div>
+              <div className="chart-modal-body" style={{ padding: 0 }}>
+                <AdvancedTradingChart
+                  symbol={resolveBackendSymbol(expandedChart)}
+                  initialTimeframe="D"
+                  height={680}
+                  showHeader={false}
+                />
+              </div>
             </div>
           </div>
-        </div>
-        </div>
+        </>
       )}
+
     </MainLayout>
   );
 }

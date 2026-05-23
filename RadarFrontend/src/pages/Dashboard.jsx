@@ -1,6 +1,6 @@
 import { lazy, Suspense, useState, useEffect, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { useNavigate, useLocation, Link } from "react-router-dom";
+import { useNavigate, useLocation, useParams, Link } from "react-router-dom";
 
 import {
   LayoutDashboard,
@@ -15,6 +15,7 @@ import {
   GraduationCap,
 } from "lucide-react";
 import { updateUserMode } from "../api/userApi";
+import api from "../api/api";
 import { fetchMarketData, fetchTrendingSearches, logSearchQuery, fetchUniversalSymbolSearch } from "../api/marketApi";
 import { useHeaderData } from "../hooks/useHeaderData";
 import MarketTicker from "../components/dashboard/MarketTicker";
@@ -128,9 +129,11 @@ const FooterActions = ({ onSignOut }) => (
 
 export default function Dashboard() {
   const location = useLocation();
+  const params = useParams();
   const navigate = useNavigate();
   const queryParams = new URLSearchParams(location.search);
-  const activeModuleParam = queryParams.get("module") || "DASHBOARD";
+  const pathModuleParam = String(params.module || "").trim().toUpperCase();
+  const activeModuleParam = pathModuleParam || queryParams.get("module") || "DASHBOARD";
 
   const isTraderPath = location.pathname.includes('/trader');
   const isInvestorPath = location.pathname.includes('/investor');
@@ -141,6 +144,10 @@ export default function Dashboard() {
     if (isInvestorPath) return false;
     return String(localStorage.getItem("mode") || "INVESTOR").toUpperCase() === "TRADER";
   });
+
+  useEffect(() => {
+    setActiveModule(activeModuleParam);
+  }, [activeModuleParam]);
 
   // Sync isTraderMode with URL path changes
   useEffect(() => {
@@ -178,11 +185,38 @@ export default function Dashboard() {
 
 
   useEffect(() => {
+    let isMounted = true;
     const token = localStorage.getItem("token");
     const hasCompletedAssessment = localStorage.getItem("hasCompletedAssessment") === "true";
-    if (token && !hasCompletedAssessment) {
-      navigate("/onboarding");
+
+    // If not logged in or already confirmed assessment, skip check
+    if (!token || hasCompletedAssessment) {
+      return undefined;
     }
+
+    const verifyAssessment = async () => {
+      try {
+        const response = await api.get('/user/profile');
+        if (!isMounted) return;
+
+        if (response.data?.investorDNA?.completedAt) {
+          // Assessment confirmed complete — cache it and stay on dashboard
+          localStorage.setItem("hasCompletedAssessment", "true");
+          localStorage.setItem("investorDNA", JSON.stringify(response.data.investorDNA));
+        }
+        // If investorDNA is missing/null, do NOT redirect — user may have skipped or
+        // the field is just not set yet. Only redirect if the backend explicitly says so.
+      } catch (error) {
+        // API failure (401, 500, network error) — do NOT redirect to onboarding.
+        // Silently ignore so the dashboard still renders.
+        console.warn("Could not verify assessment status (will not redirect):", error?.message);
+      }
+    };
+
+    verifyAssessment();
+    return () => {
+      isMounted = false;
+    };
   }, [navigate]);
   
 
@@ -207,19 +241,22 @@ export default function Dashboard() {
 
   const toggleMode = () => {
     const newMode = !isTraderMode;
-    localStorage.setItem("mode", newMode ? "TRADER" : "INVESTOR");
-    updateUserMode(newMode ? "TRADER" : "INVESTOR").catch((error) => {
-      console.error("Failed to sync preferred mode:", error);
+    const modeStr = newMode ? 'TRADER' : 'INVESTOR';
+    localStorage.setItem('mode', modeStr);
+    updateUserMode(modeStr).catch((error) => {
+      console.error('Failed to sync preferred mode:', error);
     });
     if (newMode) {
+      // Investor → Trader: show transition animation then navigate
       setIsProfileOpen(false);
       setIsTransitioning(true);
       setTimeout(() => {
-        setIsTraderMode(true);
         setIsTransitioning(false);
+        navigate('/trader/dashboard');
       }, 2200);
     } else {
-      setIsTraderMode(false);
+      // Trader → Investor: navigate immediately (no animation needed)
+      navigate('/investor/dashboard');
     }
   };
   useEffect(() => {
@@ -254,6 +291,12 @@ export default function Dashboard() {
 
   const handleModuleChange = (module) => {
     setActiveModule(module);
+    if (isTraderMode) {
+      const nextPath = module === "DASHBOARD"
+        ? "/trader/dashboard"
+        : `/trader/dashboard/${module.toLowerCase()}`;
+      navigate(nextPath, { replace: false });
+    }
   };
 
   useEffect(() => {
@@ -476,13 +519,20 @@ export default function Dashboard() {
 
               {}
               <div className="flex items-center gap-6">
-                <div className="trader-search-shell-wrap relative hidden xl:block" ref={traderSearchContainerRef}>
+                <div 
+                  className="trader-search-shell-wrap relative hidden xl:block" 
+                  ref={traderSearchContainerRef}
+                  style={{ zIndex: 999999 }}
+                >
                   <div className="trader-search-shell">
                     <div className="trader-search-icon" aria-hidden="true">
                       <Search size={16} />
                     </div>
                     <input
                       type="text"
+                      name="trader_search_unique_xyz"
+                      autoComplete="new-password"
+                      spellCheck="false"
                       placeholder="Search symbol"
                       value={traderSearchQuery}
                       onFocus={() => {
@@ -532,8 +582,9 @@ export default function Dashboard() {
                         }
                       }}
                       className="trader-search-input"
+                      style={{ background: 'transparent', backgroundColor: 'transparent', border: 'none', outline: 'none', boxShadow: 'none' }}
                     />
-                    <span className="trader-search-shortcut">Ctrl+K</span>
+
                     <button
                       type="button"
                       onClick={submitTraderSearch}
@@ -544,7 +595,10 @@ export default function Dashboard() {
                   </div>
 
                   {showTraderSearchDropdown && (
-                    <div className="trader-search-dropdown absolute top-11 left-0 right-0 rounded-2xl shadow-xl overflow-hidden">
+                    <div 
+                      className="trader-search-dropdown absolute top-11 left-0 right-0 rounded-2xl shadow-xl overflow-hidden z-[9999]"
+                      style={{ background: '#020617', backgroundColor: '#020617', border: '1px solid rgba(34, 211, 238, 0.3)', backdropFilter: 'none' }}
+                    >
                       {isTraderSearching && (
                         <div className="px-4 py-3 text-xs font-semibold text-[#9fb4c8]">Searching market...</div>
                       )}

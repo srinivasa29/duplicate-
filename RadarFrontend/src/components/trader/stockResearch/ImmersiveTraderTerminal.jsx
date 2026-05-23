@@ -131,12 +131,18 @@ const GlassPanel = ({ children, className = "" }) => (
 );
 
 // ── Chart Pane Component ──
-const ChartPane = ({ symbol, timeframe, chartType, indicators, basePrice, activeTool, drawingsHidden, isMaster = false, onTimeRangeChange }) => {
+const ChartPane = ({ symbol, timeframe, chartType, indicators, basePrice, activeTool, drawingsHidden, isMaster = false, onTimeRangeChange, onQuoteUpdate }) => {
   const containerRef = useRef(null);
   const chartRef = useRef(null);
   const mainSeriesRef = useRef(null);
+  const [currentQuote, setCurrentQuote] = useState({ o: basePrice, h: basePrice, l: basePrice, c: basePrice });
+  const [isCrypto, setIsCrypto] = useState(false);
 
   useEffect(() => {
+    const knownCryptos = ['BTC', 'ETH', 'SOL', 'ADA', 'XRP', 'DOGE', 'DOT', 'BNB', 'MATIC', 'AVAX', 'LINK', 'LTC'];
+    const bareSymbol = symbol.replace(/\.(NS|BO)$/i, '').replace(/-USD$/i, '');
+    setIsCrypto(knownCryptos.includes(bareSymbol.toUpperCase()));
+    
     if (!containerRef.current) return;
 
     const chart = createChart(containerRef.current, {
@@ -165,6 +171,16 @@ const ChartPane = ({ symbol, timeframe, chartType, indicators, basePrice, active
     const loadData = async () => {
       const rawData = await buildOhlcv(symbol, timeframe);
       if (rawData.length === 0) return;
+
+      const last = rawData[rawData.length - 1];
+      if (last) {
+        setCurrentQuote({ o: last.open, h: last.high, l: last.low, c: last.close });
+        if (onQuoteUpdate && isMaster) {
+            const prev = rawData[rawData.length - 2];
+            const changePercent = prev ? ((last.close / prev.close) - 1) * 100 : 0;
+            onQuoteUpdate({ price: last.close, changePercent });
+        }
+      }
 
       const lineData = rawData.map(({ time, close }) => ({ time, value: close }));
       const chartData =
@@ -480,6 +496,18 @@ const ChartPane = ({ symbol, timeframe, chartType, indicators, basePrice, active
           )}
         </g>
       </svg>
+      <div className="absolute top-4 left-5 z-20 pointer-events-none flex flex-col gap-2">
+        <div className="flex items-center gap-3">
+          <span className="text-[11px] font-black text-white uppercase tracking-[0.1em]">{symbol.replace(/\.(NS|BO)$/i, '').replace(/-USD$/i, '')}</span>
+          <span className="text-[9px] font-bold text-slate-500 tracking-wider">{isCrypto ? 'CRYPTO' : 'NSE'} • {timeframe}</span>
+        </div>
+        <div className="flex items-center gap-5 bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/5">
+          <div className="flex gap-1.5 items-baseline"><span className="text-[8px] font-black text-slate-500 uppercase">O</span><span className="text-[10px] font-mono font-bold text-emerald-400">{(currentQuote.o || 0).toFixed(2)}</span></div>
+          <div className="flex gap-1.5 items-baseline"><span className="text-[8px] font-black text-slate-500 uppercase">H</span><span className="text-[10px] font-mono font-bold text-rose-400">{(currentQuote.h || 0).toFixed(2)}</span></div>
+          <div className="flex gap-1.5 items-baseline"><span className="text-[8px] font-black text-slate-500 uppercase">L</span><span className="text-[10px] font-mono font-bold text-emerald-400">{(currentQuote.l || 0).toFixed(2)}</span></div>
+          <div className="flex gap-1.5 items-baseline"><span className="text-[8px] font-black text-slate-500 uppercase">C</span><span className="text-[10px] font-mono font-bold text-white">{(currentQuote.c || 0).toFixed(2)}</span></div>
+        </div>
+      </div>
     </div>
   );
 };
@@ -487,6 +515,8 @@ const ChartPane = ({ symbol, timeframe, chartType, indicators, basePrice, active
 const ImmersiveTraderTerminal = ({ symbol: initialSymbol = "RELIANCE", basePrice = 2870.15 }) => {
   const navigate = useNavigate();
   const [symbol, setSymbol] = useState(initialSymbol);
+  const [globalPrice, setGlobalPrice] = useState({ price: basePrice, changePercent: 1.83 });
+
   useEffect(() => { setSymbol(initialSymbol); }, [initialSymbol]);
   
   const [timeframe, setTimeframe] = useState('10m');
@@ -582,10 +612,10 @@ const ImmersiveTraderTerminal = ({ symbol: initialSymbol = "RELIANCE", basePrice
             <ArrowLeft size={16} />
           </button>
           <div className="flex items-center gap-4">
-            <h1 className="text-lg font-black text-white tracking-tighter uppercase">{symbol}</h1>
-            <div className="flex items-center gap-2 bg-emerald-500/10 px-2 py-1 rounded border border-emerald-500/20">
-              <span className="text-[14px] font-mono font-black text-emerald-400">{basePrice.toFixed(2)}</span>
-              <span className="text-[10px] font-bold text-emerald-500">+1.83%</span>
+            <h1 className="text-lg font-black text-white tracking-tighter uppercase">{symbol.replace(/\.(NS|BO)$/i, '').replace(/-USD$/i, '')}</h1>
+            <div className={`flex items-center gap-2 px-2 py-1 rounded border ${globalPrice.changePercent >= 0 ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-rose-500/10 border-rose-500/20'}`}>
+              <span className={`text-[14px] font-mono font-black ${globalPrice.changePercent >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{(globalPrice.price || 0).toFixed(2)}</span>
+              <span className={`text-[10px] font-bold ${globalPrice.changePercent >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>{globalPrice.changePercent >= 0 ? '+' : ''}{(globalPrice.changePercent || 0).toFixed(2)}%</span>
             </div>
           </div>
         </div>
@@ -738,19 +768,9 @@ const ImmersiveTraderTerminal = ({ symbol: initialSymbol = "RELIANCE", basePrice
                 basePrice={basePrice} 
                 activeTool={activeTool}
                 drawingsHidden={drawingsHidden}
+                isMaster={i === 0}
+                onQuoteUpdate={setGlobalPrice}
               />
-              <div className="absolute top-4 left-5 z-20 pointer-events-none flex flex-col gap-2">
-                <div className="flex items-center gap-3">
-                  <span className="text-[11px] font-black text-white uppercase tracking-[0.1em]">{symbol}</span>
-                  <span className="text-[9px] font-bold text-slate-500 tracking-wider">NSE • {timeframe}</span>
-                </div>
-                <div className="flex items-center gap-5 bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/5">
-                  <div className="flex gap-1.5 items-baseline"><span className="text-[8px] font-black text-slate-500 uppercase">O</span><span className="text-[10px] font-mono font-bold text-emerald-400">{(basePrice || 0).toFixed(2)}</span></div>
-                  <div className="flex gap-1.5 items-baseline"><span className="text-[8px] font-black text-slate-500 uppercase">H</span><span className="text-[10px] font-mono font-bold text-rose-400">{(basePrice || 0).toFixed(2)}</span></div>
-                  <div className="flex gap-1.5 items-baseline"><span className="text-[8px] font-black text-slate-500 uppercase">L</span><span className="text-[10px] font-mono font-bold text-emerald-400">{(basePrice || 0).toFixed(2)}</span></div>
-                  <div className="flex gap-1.5 items-baseline"><span className="text-[8px] font-black text-slate-500 uppercase">C</span><span className="text-[10px] font-mono font-bold text-white">{(basePrice || 0).toFixed(2)}</span></div>
-                </div>
-              </div>
             </div>
           ))}
         </div>

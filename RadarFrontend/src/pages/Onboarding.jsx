@@ -183,7 +183,8 @@ const Onboarding = () => {
                 },
                 confidence,
                 whyBullets: whyBullets.slice(0, 3),
-                hybridLine
+                hybridLine,
+                completedAt: new Date().toISOString()
             };
 
             setAnalysis(dnaPayload);
@@ -191,8 +192,16 @@ const Onboarding = () => {
             localStorage.setItem('hasCompletedAssessment', 'true');
             localStorage.setItem('investorDNA', JSON.stringify(dnaPayload));
 
-            // Persist to backend (non-blocking — fails silently if not logged in)
-            api.post('/user/dna', dnaPayload).catch(() => {});
+            api.post('/user/dna', dnaPayload)
+                .then((response) => {
+                    const savedDNA = response.data?.data;
+                    if (savedDNA) {
+                        localStorage.setItem('investorDNA', JSON.stringify(savedDNA));
+                    }
+                })
+                .catch((error) => {
+                    console.error('Failed to save assessment to account:', error);
+                });
         }, 1500);
     };
 

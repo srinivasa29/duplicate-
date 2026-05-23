@@ -12,11 +12,28 @@ const readCourses = async () => {
     return JSON.parse(raw);
 };
 
-// GET /api/learning  — all courses
+// GET /api/learning  — all courses (optionally filtered by ?audience=trader|investor)
+const DIFFICULTY_ORDER = { beginner: 0, intermediate: 1, advanced: 2 };
+
 const getLearnings = async (req, res) => {
     try {
         const courses = await readCourses();
-        res.json({ success: true, data: courses });
+        const audience = String(req.query.audience || '').toLowerCase();
+        const filtered = audience
+            ? courses.filter(c => {
+                const a = String(c.audience || 'both').toLowerCase();
+                return a === 'both' || a === audience;
+              })
+            : courses;
+
+        // Sort Beginner → Intermediate → Advanced
+        filtered.sort((a, b) => {
+            const aOrder = DIFFICULTY_ORDER[String(a.difficulty || '').toLowerCase()] ?? 99;
+            const bOrder = DIFFICULTY_ORDER[String(b.difficulty || '').toLowerCase()] ?? 99;
+            return aOrder - bOrder;
+        });
+
+        res.json({ success: true, data: filtered });
     } catch (error) {
         logger.error('Failed to load learning data:', error);
         res.status(500).json({ success: false, error: 'Failed to load learning data' });

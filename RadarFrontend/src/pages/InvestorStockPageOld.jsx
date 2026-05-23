@@ -42,12 +42,14 @@ import {
 import Header from '../components/common/Header';
 import './InvestorStockPage.css';
 import { useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import api, { saveToDefaultWatchlist } from '../api/api';
+import { useParams, Link, useNavigate } from 'react-router-dom';
+import api, { toggleWatchlist } from '../api/api';
 import { fetchUserWatchlist, removeSymbolFromWatchlist } from '../api/watchlistApi';
 import { useSocket } from '../hooks/useSocket';
 import { formatPrice } from '../utils/currency';
 import { fetchMarketHistory, fetchMarketData } from '../api/marketApi';
+import { getAssetMetadata } from '../utils/assetClassifier';
+import StockFundamentalsPanel from '../components/shared/StockFundamentalsPanel';
 
 
 
@@ -83,6 +85,13 @@ const METRIC_DESCRIPTIONS = {
 
 const InvestorStockPage = () => {
   const { symbol = 'JINDRILL' } = useParams();
+  const navigate = useNavigate();
+
+  const handleToggleMode = () => {
+    localStorage.setItem('mode', 'TRADER');
+    updateUserMode('TRADER').catch(() => {});
+    navigate('/trader/dashboard');
+  };
   const [activeTab, setActiveTab] = useState('Overview');
   const [timeFilter, setTimeFilter] = useState('1M');
   const [finTab, setFinTab] = useState('Revenue');
@@ -91,10 +100,17 @@ const InvestorStockPage = () => {
   const [chartType, setChartType] = useState('area');
   const [isChartLoading, setIsChartLoading] = useState(false);
   const [isAlertOn, setIsAlertOn] = useState(false);
+  const [showAlertModal, setShowAlertModal] = useState(false);
+  const [alertTargetPrice, setAlertTargetPrice] = useState('');
+  const [alertCondition, setAlertCondition] = useState('above'); // 'above' | 'below'
+  const [notifications, setNotifications] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('radar_notifications') || '[]'); } catch { return []; }
+  });
+  const alertTriggeredRef = React.useRef(false);
   const [isInWatchlist, setIsInWatchlist] = useState(false);
   const [watchlistLoading, setWatchlistLoading] = useState(false);
   const [watchlistId, setWatchlistId] = useState(null);
-  const [toast, setToast] = useState(null); // { msg, type: 'success'|'error' }
+  const [toast, setToast] = useState(null); // { msg, type: 'success'|'error'|'alert' }
 
   // Fast-path crypto detection from the symbol itself (prevents .NS leakage on first render)
   // Confirmed/overridden by backend item.type once API responds
@@ -109,7 +125,15 @@ const InvestorStockPage = () => {
   // Asset type: starts with fast-path guess, confirmed by backend
   const [assetType, setAssetType] = useState(isSymbolCrypto ? 'CRYPTO' : 'STOCK');
   const isCrypto = assetType === 'CRYPTO';
-  const currencyPrefix = isCrypto ? '$' : '₹';
+
+  // Dynamic asset metadata from classifier utility
+  const assetMeta = getAssetMetadata(symbol);
+  const isIndex = assetMeta.type === 'Index';
+  const isForex = assetMeta.type === 'Forex';
+  const isEquity = assetMeta.type === 'Equity';
+
+  // Currency prefix: USD for crypto, otherwise INR
+  const currencyPrefix = (isCrypto || assetMeta.type === 'Crypto') ? '' : '₹';
 
   const [financialData, setFinancialData] = useState(null);
   const [newsImpactData, setNewsImpactData] = useState(null);
@@ -165,11 +189,10 @@ const InvestorStockPage = () => {
   };
 
 
-  // --- Load watchlist membership on mount ---
   useEffect(() => {
     const checkWatchlist = async () => {
       try {
-        const res = await api.get('/watchlist');
+        const res = await api.get('/watchlist', { params: { mode: 'investor' } });
         const lists = res.data || [];
         if (lists.length > 0) {
           const first = lists[0];
@@ -185,6 +208,81 @@ const InvestorStockPage = () => {
     checkWatchlist();
   }, [symbol]);
 
+  // ── Price Alert Helpers ──
+  const savedAlertKey = `radar_alert_${symbol}`;
+
+  const handleSaveAlert = () => {
+    const price = parseFloat(alertTargetPrice);
+    if (!price || isNaN(price) || price <= 0) {
+      showToast('Enter a valid target price', 'error');
+      return;
+    }
+    const alert = { symbol, targetPrice: price, condition: alertCondition, createdAt: Date.now() };
+    localStorage.setItem(savedAlertKey, JSON.stringify(alert));
+    setIsAlertOn(true);
+    alertTriggeredRef.current = false;
+    setShowAlertModal(false);
+    showToast(`Alert set: ${symbol} ${alertCondition} ₹${price.toLocaleString('en-IN')}`, 'success');
+  };
+
+  const handleRemoveAlert = () => {
+    localStorage.removeItem(savedAlertKey);
+    setIsAlertOn(false);
+    alertTriggeredRef.current = false;
+    setShowAlertModal(false);
+    showToast(`Alert removed for ${symbol}`, 'info');
+  };
+
+  const addNotification = (msg) => {
+    const notif = { id: Date.now(), msg, symbol, time: new Date().toLocaleTimeString(), read: false };
+    setNotifications(prev => {
+      const updated = [notif, ...prev].slice(0, 50);
+      localStorage.setItem('radar_notifications', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  // Load saved alert on mount
+  React.useEffect(() => {
+    const saved = localStorage.getItem(savedAlertKey);
+    if (saved) {
+      try {
+        const a = JSON.parse(saved);
+        setIsAlertOn(true);
+        setAlertTargetPrice(String(a.targetPrice));
+        setAlertCondition(a.condition || 'above');
+      } catch (_) {}
+    }
+  }, [symbol]);
+
+  // Monitor live price against alert target
+  React.useEffect(() => {
+    if (!isAlertOn || alertTriggeredRef.current) return;
+    const saved = localStorage.getItem(savedAlertKey);
+    if (!saved || livePrice <= 0) return;
+    try {
+      const a = JSON.parse(saved);
+      const hit = a.condition === 'above' ? livePrice >= a.targetPrice : livePrice <= a.targetPrice;
+      if (hit) {
+        alertTriggeredRef.current = true;
+        const msg = `🔔 ${symbol} hit ₹${livePrice.toLocaleString('en-IN')} — your alert target of ₹${a.targetPrice.toLocaleString('en-IN')} (${a.condition}) was reached!`;
+        addNotification(msg);
+        showToast(msg, 'alert');
+        // Browser notification if permission granted
+        if (Notification.permission === 'granted') {
+          new Notification(`RADAR Price Alert: ${symbol}`, { body: msg, icon: '/radar-logo-final.jpg' });
+        } else if (Notification.permission !== 'denied') {
+          Notification.requestPermission().then(p => {
+            if (p === 'granted') new Notification(`RADAR Price Alert: ${symbol}`, { body: msg, icon: '/radar-logo-final.jpg' });
+          });
+        }
+        // Auto-remove alert after triggering
+        localStorage.removeItem(savedAlertKey);
+        setIsAlertOn(false);
+      }
+    } catch (_) {}
+  }, [livePrice, isAlertOn]);
+
   const showToast = (msg, type = 'success') => {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 3000);
@@ -192,23 +290,40 @@ const InvestorStockPage = () => {
 
   const handleWatchlistToggle = async () => {
     if (watchlistLoading) return;
+
+    // Check auth before attempting
+    const token = localStorage.getItem('token');
+    if (!token) {
+      showToast('Please log in to save to your watchlist', 'info');
+      return;
+    }
+
     setWatchlistLoading(true);
     try {
-      if (isInWatchlist && watchlistId) {
-        await api.delete(`/watchlist/${watchlistId}/remove/${encodeURIComponent(symbol)}`);
+      if (isInWatchlist) {
+        await toggleWatchlist(symbol, 'investor');
         setIsInWatchlist(false);
         showToast(`${symbol} removed from watchlist`, 'info');
       } else {
-        await saveToDefaultWatchlist(symbol);
+        await toggleWatchlist(symbol, 'investor');
         setIsInWatchlist(true);
         showToast(`${symbol} added to watchlist ✓`, 'success');
       }
     } catch (err) {
-      showToast('Failed to update watchlist', 'error');
+      const status = err?.response?.status;
+      if (status === 401 || status === 403) {
+        showToast('Session expired. Please log in again.', 'error');
+      } else if (status === 400 && err?.response?.data?.error?.includes('already')) {
+        showToast(`${symbol} is already in your watchlist`, 'info');
+        setIsInWatchlist(true);
+      } else {
+        showToast('Failed to update watchlist. Try again.', 'error');
+      }
     } finally {
       setWatchlistLoading(false);
     }
   };
+
 
   useEffect(() => {
     // Set body background for stability when scrolling
@@ -386,11 +501,25 @@ const InvestorStockPage = () => {
             else if (timeFilter === '5Y') interval = '1M';
             else if (timeFilter === 'All') interval = '1M';
 
-            // Use raw symbol + CRYPTO type for crypto, add .NS for Indian stocks
-            const chartSymbol = isCrypto
-              ? String(symbol).toUpperCase().endsWith('USDT') ? symbol : `${symbol}USDT`
-              : (exchange === 'NSE' && !symbol.endsWith('.NS') ? `${symbol}.NS` : symbol);
-            const chartType = isCrypto ? 'CRYPTO' : 'STOCK';
+    // Symbol formatting based on asset type
+    let chartSymbol;
+    let chartType;
+    if (assetMeta.type === 'Crypto') {
+      chartSymbol = String(symbol).toUpperCase().endsWith('USDT') ? symbol : `${symbol}USDT`;
+      chartType = 'CRYPTO';
+    } else if (assetMeta.type === 'Index') {
+      // Map common index names to their Yahoo Finance / backend format
+      const indexMap = { 'NIFTY': '^NSEI', 'BANKNIFTY': '^NSEBANK', 'SENSEX': '^BSESN', 'NIFTY50': '^NSEI' };
+      chartSymbol = indexMap[symbol.toUpperCase()] || `^${symbol}`;
+      chartType = 'INDEX';
+    } else if (assetMeta.type === 'Forex') {
+      // Format: USDINR -> USD/INR or USD=X
+      chartSymbol = symbol.length === 6 ? `${symbol.slice(0,3)}/${symbol.slice(3)}` : symbol;
+      chartType = 'FOREX';
+    } else {
+      chartSymbol = (exchange === 'NSE' && !symbol.endsWith('.NS')) ? `${symbol}.NS` : symbol;
+      chartType = 'STOCK';
+    }
 
             const res = await fetchMarketHistory(chartSymbol, chartType, interval);
             if (active && res && res.data) {
@@ -514,7 +643,7 @@ const InvestorStockPage = () => {
 
   return (
     <div className="dashboard-container investor-theme pt-4">
-      <Header activeModule="STOCKS" onToggleMode={() => {}} />
+      <Header activeModule="STOCKS" onToggleMode={handleToggleMode} />
 
       <main className="main-content">
         <div className="page-container">
@@ -524,8 +653,25 @@ const InvestorStockPage = () => {
               <div className="header-left-info">
                 <div className="meta-row">
                   <span className="symbol-name">{symbol}</span>
-                  {/* Hide NSE/BSE switcher for crypto assets */}
-                  {!isCrypto && (
+                  {/* Dynamic asset class badge */}
+                  <span style={{
+                    display: 'inline-flex', alignItems: 'center', gap: '4px',
+                    padding: '2px 8px', borderRadius: '6px', fontSize: '11px',
+                    fontWeight: 800, letterSpacing: '0.06em',
+                    background: assetMeta.type === 'Crypto' ? 'rgba(245,158,11,0.12)' :
+                                assetMeta.type === 'Index'  ? 'rgba(139,92,246,0.12)' :
+                                assetMeta.type === 'Forex'  ? 'rgba(59,130,246,0.12)' :
+                                                              'rgba(16,185,129,0.12)',
+                    color: assetMeta.type === 'Crypto' ? '#d97706' :
+                           assetMeta.type === 'Index'  ? '#7c3aed' :
+                           assetMeta.type === 'Forex'  ? '#2563eb' :
+                                                         '#059669',
+                  }}>
+                    <span style={{ fontSize: '13px' }}>{assetMeta.icon}</span>
+                    {assetMeta.type.toUpperCase()}
+                  </span>
+                  {/* Hide NSE/BSE switcher for non-equity assets */}
+                  {isEquity && (
                     <div className="exchange-switcher">
                       <button className="ex-arrow-btn" onClick={handleExchangeChange}>
                         <ChevronLeft size={16} />
@@ -536,8 +682,10 @@ const InvestorStockPage = () => {
                       </button>
                     </div>
                   )}
-                  {isCrypto && (
-                    <span className="ex-current" style={{ fontSize: '11px', color: '#f59e0b', fontWeight: 800, letterSpacing: '0.08em' }}>CRYPTO · USD</span>
+                  {!isEquity && (
+                    <span className="ex-current" style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 700, letterSpacing: '0.08em' }}>
+                      {assetMeta.exchange} · {assetMeta.currency}
+                    </span>
                   )}
                 </div>
                 <h1 className="stock-main-title">{symbol === 'JINDRILL' ? 'Jindal Drilling & Industries' : symbol}</h1>
@@ -547,12 +695,17 @@ const InvestorStockPage = () => {
                 {/* Watchlist toast */}
                 {toast && (
                   <div style={{
-                    position: 'absolute', top: '-48px', right: 0,
-                    background: toast.type === 'error' ? '#fee2e2' : toast.type === 'info' ? '#eff6ff' : '#d1fae5',
-                    color: toast.type === 'error' ? '#991b1b' : toast.type === 'info' ? '#1e40af' : '#065f46',
-                    border: `1px solid ${toast.type === 'error' ? '#fca5a5' : toast.type === 'info' ? '#93c5fd' : '#6ee7b7'}`,
-                    borderRadius: '10px', padding: '6px 14px',
+                    position: 'absolute', top: '-56px', right: 0,
+                    background: toast.type === 'error' ? '#fee2e2' :
+                                toast.type === 'info'  ? '#eff6ff' :
+                                toast.type === 'alert' ? '#fef3c7' : '#d1fae5',
+                    color: toast.type === 'error' ? '#991b1b' :
+                           toast.type === 'info'  ? '#1e40af' :
+                           toast.type === 'alert' ? '#92400e' : '#065f46',
+                    border: `1px solid ${toast.type === 'error' ? '#fca5a5' : toast.type === 'info' ? '#93c5fd' : toast.type === 'alert' ? '#fcd34d' : '#6ee7b7'}`,
+                    borderRadius: '10px', padding: '8px 16px',
                     fontSize: '12px', fontWeight: 700, whiteSpace: 'nowrap',
+                    maxWidth: '380px', overflow: 'hidden', textOverflow: 'ellipsis',
                     boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
                     animation: 'fadeIn 0.2s ease',
                     zIndex: 99,
@@ -562,11 +715,106 @@ const InvestorStockPage = () => {
                 )}
                 <button 
                   className={`icon-action-btn ${isAlertOn ? 'active' : ''}`}
-                  onClick={() => setIsAlertOn(!isAlertOn)}
-                  title="Price Alert"
+                  onClick={() => setShowAlertModal(true)}
+                  title={isAlertOn ? 'Price Alert Active' : 'Set Price Alert'}
+                  style={{ position: 'relative' }}
                 >
                   <Bell size={18} />
+                  {isAlertOn && (
+                    <span style={{
+                      position: 'absolute', top: '-4px', right: '-4px',
+                      width: '8px', height: '8px', borderRadius: '50%',
+                      background: '#10b981', border: '1.5px solid white',
+                      animation: 'livePulse 2s infinite'
+                    }} />
+                  )}
                 </button>
+
+                {/* ── Price Alert Modal ── */}
+                {showAlertModal && (
+                  <div style={{
+                    position: 'fixed', inset: 0, zIndex: 9999,
+                    background: 'rgba(15,23,42,0.45)', backdropFilter: 'blur(6px)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }} onClick={() => setShowAlertModal(false)}>
+                    <div onClick={e => e.stopPropagation()} style={{
+                      background: '#ffffff', borderRadius: '20px',
+                      boxShadow: '0 24px 60px rgba(0,0,0,0.18)',
+                      padding: '28px 32px', width: '360px', maxWidth: '90vw',
+                      fontFamily: 'Inter, sans-serif',
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+                        <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: '#f0fdf4', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <Bell size={18} style={{ color: '#10b981' }} />
+                        </div>
+                        <div>
+                          <div style={{ fontWeight: 800, fontSize: '16px', color: '#0f172a' }}>Set Price Alert</div>
+                          <div style={{ fontSize: '12px', color: '#64748b' }}>{symbol} · Current: ₹{livePrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+                        </div>
+                      </div>
+
+                      <div style={{ height: '1px', background: '#f1f5f9', margin: '16px 0' }} />
+
+                      <div style={{ marginBottom: '14px' }}>
+                        <label style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: '6px' }}>Condition</label>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          {['above', 'below'].map(cond => (
+                            <button key={cond} onClick={() => setAlertCondition(cond)} style={{
+                              flex: 1, padding: '8px', borderRadius: '10px', border: '1.5px solid',
+                              borderColor: alertCondition === cond ? '#3b82f6' : '#e2e8f0',
+                              background: alertCondition === cond ? '#eff6ff' : '#f8fafc',
+                              color: alertCondition === cond ? '#2563eb' : '#64748b',
+                              fontWeight: 700, fontSize: '13px', cursor: 'pointer', textTransform: 'capitalize',
+                            }}>
+                              {cond === 'above' ? '▲ Above' : '▼ Below'}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div style={{ marginBottom: '20px' }}>
+                        <label style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: '6px' }}>Target Price (₹)</label>
+                        <input
+                          type="number"
+                          value={alertTargetPrice}
+                          onChange={e => setAlertTargetPrice(e.target.value)}
+                          placeholder={`e.g. ${(livePrice * 1.05).toFixed(0)}`}
+                          autoFocus
+                          style={{
+                            width: '100%', padding: '11px 14px', borderRadius: '10px',
+                            border: '1.5px solid #e2e8f0', fontSize: '15px', fontWeight: 700,
+                            color: '#0f172a', outline: 'none', boxSizing: 'border-box',
+                            background: '#f8fafc',
+                          }}
+                          onFocus={e => e.target.style.borderColor = '#3b82f6'}
+                          onBlur={e => e.target.style.borderColor = '#e2e8f0'}
+                          onKeyDown={e => e.key === 'Enter' && handleSaveAlert()}
+                        />
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '10px' }}>
+                        {isAlertOn && (
+                          <button onClick={handleRemoveAlert} style={{
+                            flex: 1, padding: '11px', borderRadius: '10px',
+                            border: '1.5px solid #fee2e2', background: '#fff5f5',
+                            color: '#ef4444', fontWeight: 700, fontSize: '13px', cursor: 'pointer',
+                          }}>Remove Alert</button>
+                        )}
+                        <button onClick={() => setShowAlertModal(false)} style={{
+                          flex: 1, padding: '11px', borderRadius: '10px',
+                          border: '1.5px solid #e2e8f0', background: '#f8fafc',
+                          color: '#64748b', fontWeight: 700, fontSize: '13px', cursor: 'pointer',
+                        }}>Cancel</button>
+                        <button onClick={handleSaveAlert} style={{
+                          flex: 2, padding: '11px', borderRadius: '10px',
+                          border: 'none', background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
+                          color: '#ffffff', fontWeight: 800, fontSize: '13px', cursor: 'pointer',
+                          boxShadow: '0 4px 12px rgba(59,130,246,0.35)',
+                        }}>Set Alert 🔔</button>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 <button 
                   className={`icon-action-btn ${isInWatchlist ? 'active' : ''}`}
                   onClick={handleWatchlistToggle}
@@ -758,8 +1006,8 @@ const InvestorStockPage = () => {
                 </div>
               </div>
 
-              {/* ---- METRICS ROW: crypto vs stock ---- */}
-              {isCrypto ? (
+              {/* ---- METRICS ROW: asset-type aware ---- */}
+              {(isCrypto || assetMeta.type === 'Crypto') ? (
                 <div className="key-metrics-compact-row animate-fade-in">
                   {[
                     {
@@ -805,6 +1053,46 @@ const InvestorStockPage = () => {
                     </div>
                   ))}
                 </div>
+              ) : isIndex ? (
+                <div className="key-metrics-compact-row animate-fade-in">
+                  {[
+                    { label: 'Price', val: `₹${livePrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, tag: 'Live', hint: 'Current index level', type: 'neutral' },
+                    { label: 'Change', val: `${liveChange.pct >= 0 ? '+' : ''}${Number(liveChange.pct).toFixed(2)}%`, tag: liveChange.pct >= 0 ? 'Gaining' : 'Declining', hint: 'Today vs prev close', type: liveChange.pct >= 0 ? 'green' : 'red' },
+                    { label: 'Day High', val: quoteData?.dayHigh ? `₹${Number(quoteData.dayHigh).toLocaleString('en-IN')}` : '—', tag: 'Intraday', hint: 'Session high', type: 'neutral' },
+                    { label: 'Day Low', val: quoteData?.dayLow ? `₹${Number(quoteData.dayLow).toLocaleString('en-IN')}` : '—', tag: 'Intraday', hint: 'Session low', type: 'neutral' },
+                    { label: 'Volume', val: quoteData?.volume ? Number(quoteData.volume).toLocaleString('en-IN') : '—', tag: 'Shares', hint: 'Total traded today', type: 'neutral' },
+                    { label: 'Index Type', val: 'Market Index', tag: 'NSE', hint: 'Basket of stocks', type: 'neutral' },
+                  ].map((m, i) => (
+                    <div key={i} className="km-card">
+                      <span className="km-label">{m.label}</span>
+                      <div className="km-val-box">
+                        <span className="km-value">{m.val}</span>
+                        <span className={`km-status tag-${m.type}`}>{m.tag}</span>
+                      </div>
+                      <span className="km-hint">{m.hint}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : isForex ? (
+                <div className="key-metrics-compact-row animate-fade-in">
+                  {[
+                    { label: 'Rate', val: livePrice > 0 ? `₹${Number(livePrice).toFixed(4)}` : '—', tag: 'Live', hint: 'Exchange rate', type: 'neutral' },
+                    { label: 'Change', val: `${liveChange.pct >= 0 ? '+' : ''}${Number(liveChange.pct).toFixed(4)}%`, tag: liveChange.pct >= 0 ? 'INR Weak' : 'INR Strong', hint: 'vs prev close', type: liveChange.pct >= 0 ? 'red' : 'green' },
+                    { label: 'Pair', val: symbol.length === 6 ? `${symbol.slice(0,3)} / ${symbol.slice(3)}` : symbol, tag: 'Forex', hint: 'Currency pair', type: 'neutral' },
+                    { label: 'Base', val: symbol.slice(0, 3), tag: 'Currency', hint: 'Base currency', type: 'neutral' },
+                    { label: 'Quote', val: symbol.slice(3) || 'INR', tag: 'Currency', hint: 'Quote currency', type: 'neutral' },
+                    { label: 'Market', val: '24/5', tag: 'Forex', hint: 'Weekdays only', type: 'neutral' },
+                  ].map((m, i) => (
+                    <div key={i} className="km-card">
+                      <span className="km-label">{m.label}</span>
+                      <div className="km-val-box">
+                        <span className="km-value">{m.val}</span>
+                        <span className={`km-status tag-${m.type}`}>{m.tag}</span>
+                      </div>
+                      <span className="km-hint">{m.hint}</span>
+                    </div>
+                  ))}
+                </div>
               ) : (
                 <div className="key-metrics-compact-row animate-fade-in">
                   {[
@@ -835,11 +1123,18 @@ const InvestorStockPage = () => {
                       <h3>About {symbol}</h3>
                     </div>
                     <p className="about-text-clean">
-                      {financialData?.data?.description || (
-                        isCrypto
-                          ? `${symbol} is a digital asset and cryptocurrency traded globally on crypto exchanges. Price data is sourced from live market feeds in USD.`
-                          : `${symbol} is an equity instrument listed on the exchange. Detailed company profiling and business operations data is currently being synced from the latest regulatory filings.`
-                      )}
+                      {financialData?.data?.description || (() => {
+                        switch (assetMeta.type) {
+                          case 'Crypto':
+                            return `${symbol} is a decentralized digital asset and cryptocurrency. Market data is synced 24/7 from global crypto exchanges in USD.`;
+                          case 'Index':
+                            return `${symbol} is a market index tracking the performance of a specific basket of underlying stocks listed on the exchange. It cannot be directly bought or sold.`;
+                          case 'Forex':
+                            return `${symbol} represents the foreign exchange rate between ${symbol.slice(0,3)} and ${symbol.slice(3) || 'INR'}. It fluctuates based on global macroeconomic factors, monetary policy, and trade flows.`;
+                          default:
+                            return `${symbol} is an equity instrument listed on the exchange. Detailed company profiling and business operations data is currently being synced from the latest regulatory filings.`;
+                        }
+                      })()}
                     </p>
                     {financialData?.data?.website && <a href={financialData.data.website} target="_blank" rel="noreferrer" className="text-blue-500 font-bold text-xs mt-2 block uppercase">Visit Website</a>}
                   </div>
@@ -847,11 +1142,21 @@ const InvestorStockPage = () => {
                     <div className="meta-grid">
                       <div className="meta-item">
                         <span className="meta-l">Sector</span>
-                        <span className="meta-v">{isCrypto ? (cryptoData?.category || 'Cryptocurrency') : (quoteData?.sector || financialData?.data?.sector || 'Equity')}</span>
+                        <span className="meta-v">
+                          {assetMeta.type === 'Crypto' ? (cryptoData?.category || 'Cryptocurrency') :
+                           assetMeta.type === 'Index'  ? 'Market Index' :
+                           assetMeta.type === 'Forex'  ? 'Foreign Exchange' :
+                           (quoteData?.sector || financialData?.data?.sector || 'Equity')}
+                        </span>
                       </div>
                       <div className="meta-item">
-                        <span className="meta-l">{isCrypto ? 'Layer' : 'Industry'}</span>
-                        <span className="meta-v">{isCrypto ? (cryptoData?.layer || 'Layer 1') : (quoteData?.industry || financialData?.data?.industry || 'Services')}</span>
+                        <span className="meta-l">{assetMeta.type === 'Crypto' ? 'Layer' : assetMeta.type === 'Index' ? 'Type' : assetMeta.type === 'Forex' ? 'Pair Type' : 'Industry'}</span>
+                        <span className="meta-v">
+                          {assetMeta.type === 'Crypto' ? (cryptoData?.layer || 'Layer 1') :
+                           assetMeta.type === 'Index'  ? 'Broad Market' :
+                           assetMeta.type === 'Forex'  ? 'Spot Rate' :
+                           (quoteData?.industry || financialData?.data?.industry || 'Services')}
+                        </span>
                       </div>
                       <div className="meta-item">
                         <span className="meta-l">{isCrypto ? 'Consensus' : 'ISIN'}</span>
@@ -1388,58 +1693,27 @@ const InvestorStockPage = () => {
 
           {activeTab === 'Fundamentals' && (
             <div className="fundamentals-tab-rich animate-fade-in">
-              {}
-              <div className="ft-main-snapshot-card shadow-premium">
-                <div className="ft-header-row-snap">
-                  <div className="ft-title-group">
-                    <Activity size={20} className="text-blue-600" />
-                    <h2>Company Fundamentals</h2>
-                    <div className="info-trigger-s ml-2">
-                      <HelpCircle size={15} className="text-slate-300" />
-                      <div className="ft-dropdown-s">{FUNDAMENTALS_TOOLTIPS.companyFundamentals}</div>
+              {/* ── DB-backed live fundamentals panel (top) ─────────── */}
+              {!isCrypto && (
+                <div className="ft-main-snapshot-card shadow-premium mb-6">
+                  <div className="ft-header-row-snap mb-4">
+                    <div className="ft-title-group">
+                      <Activity size={20} className="text-blue-600" />
+                      <h2>Company Fundamentals</h2>
+                      <span className="ml-2 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-[9px] font-bold text-emerald-400 uppercase tracking-widest">Live · DB</span>
+                      <div className="info-trigger-s ml-2">
+                        <HelpCircle size={15} className="text-slate-300" />
+                        <div className="ft-dropdown-s">{FUNDAMENTALS_TOOLTIPS.companyFundamentals}</div>
+                      </div>
                     </div>
+                    <span className="ft-sub-text">Served from MongoDB · refreshed twice daily</span>
                   </div>
-                  <span className="ft-sub-text">All figures in ₹ Cr unless specified</span>
+                  <StockFundamentalsPanel symbol={symbol} compact={false} />
                 </div>
+              )}
 
-                <div className="ft-rich-table-grid">
-                  <div className="ft-table-side">
-                    {(financialData?.data?.fundamentals || []).slice(0, 8).map((m, i) => (
-                      <div key={i} className="ft-table-row-item">
-                        <div className="ft-row-label">
-                          <span>{m.name}</span>
-                        </div>
-                        <div className="ft-row-data">
-                          <div className="ft-val-top">
-                            <span className="ft-val-bold">{m.value}</span>
-                            {m.status && <span className="ft-status-pill tag-neutral">{m.status}</span>}
-                          </div>
-                          {m.hint && <span className="ft-val-hint">{m.hint}</span>}
-                        </div>
-                      </div>
-                    ))}
-                    {(!financialData?.data?.fundamentals) && <p className="text-xs p-4 text-slate-400">Loading metrics...</p>}
-                  </div>
-
-                  <div className="ft-table-side">
-                    {(financialData?.data?.fundamentals || []).slice(8, 16).map((m, i) => (
-                      <div key={i} className="ft-table-row-item">
-                        <div className="ft-row-label">
-                          <span>{m.name}</span>
-                        </div>
-                        <div className="ft-row-data">
-                          <div className="ft-val-top">
-                            <span className="ft-val-bold">{m.value}</span>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {}
-              <div className="ft-detailed-header mt-12 mb-6">
+              {/* ── Detailed analysis section (below, kept for context) ── */}
+              <div className="ft-detailed-header mt-8 mb-6">
                 <div className="ft-title-row">
                   <TrendingUp size={20} className="text-blue-500" />
                   <h2>Detailed Analysis</h2>

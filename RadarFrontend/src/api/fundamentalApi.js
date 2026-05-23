@@ -5,6 +5,24 @@ const toNumber = (value, fallback = 0) => {
     return Number.isFinite(parsed) ? parsed : fallback;
 };
 
+/**
+ * Fetch full fundamentals snapshot for a single symbol.
+ * Backend serves from MongoDB (< 24h TTL) before hitting Yahoo Finance.
+ * Returns the `data` field of the API response.
+ */
+export const fetchStockFundamentals = async (symbol) => {
+    try {
+        const clean = String(symbol || '').toUpperCase().replace(/\.(NS|BO)$/i, '');
+        const response = await api.get(`/stocks/${encodeURIComponent(clean)}/fundamentals`);
+        const payload = response.data?.data ?? response.data ?? {};
+        return payload;
+    } catch (error) {
+        if (isUnauthorizedError(error)) return null;
+        console.warn(`[fundamentalApi] Failed for ${symbol}:`, error.message);
+        return null;
+    }
+};
+
 export const fetchDiscoveryShelves = async () => {
     try {
         const response = await api.get('/fundamental/ideas');

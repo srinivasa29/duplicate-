@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Bookmark, TrendingUp, TrendingDown, Activity } from 'lucide-react';
 import { fetchPulse } from '../../api/analyticsApi';
-import api, { saveToDefaultWatchlist } from '../../api/api';
+import api, { toggleWatchlist } from '../../api/api';
 
 const displaySymbol = (value) => String(value || '').replace(/\.(NS|BO)$/i, '');
 
@@ -50,25 +50,38 @@ const MostBoughtStocks = () => {
         const sym = displaySymbol(rawSymbol).toUpperCase();
         if (loadingSymbol === sym) return;
 
+        // Pre-flight: require auth before any network call
+        const token = localStorage.getItem('token');
+        if (!token) {
+            showToast('Please log in to save to your watchlist', 'info');
+            return;
+        }
+
         setLoadingSymbol(sym);
         try {
+            await toggleWatchlist(sym, 'investor');
             if (savedSymbols.has(sym)) {
-                if (watchlistId) {
-                    await api.delete(`/watchlist/${watchlistId}/remove/${encodeURIComponent(sym)}`);
-                    setSavedSymbols(prev => { const next = new Set(prev); next.delete(sym); return next; });
-                    showToast(`${sym} removed from watchlist`, 'info');
-                }
+                setSavedSymbols(prev => { const next = new Set(prev); next.delete(sym); return next; });
+                showToast(`${sym} removed from watchlist`, 'info');
             } else {
-                await saveToDefaultWatchlist(sym);
                 setSavedSymbols(prev => new Set([...prev, sym]));
                 showToast(`${sym} added to watchlist ✓`, 'success');
             }
-        } catch {
-            showToast('Failed to update watchlist', 'error');
+        } catch (err) {
+            const status = err?.response?.status;
+            if (status === 401 || status === 403) {
+                showToast('Session expired. Please log in again.', 'error');
+            } else if (status === 400 && err?.response?.data?.error?.includes('already')) {
+                showToast(`${sym} is already in your watchlist`, 'info');
+                setSavedSymbols(prev => new Set([...prev, sym]));
+            } else {
+                showToast('Failed to update watchlist. Try again.', 'error');
+            }
         } finally {
             setLoadingSymbol(null);
         }
     }, [savedSymbols, watchlistId, loadingSymbol, showToast]);
+
 
     useEffect(() => {
         const loadPulse = async () => {

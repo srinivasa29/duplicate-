@@ -60,7 +60,6 @@ const ohlcSchema = new mongoose.Schema({
         metaField: 'symbol',
         granularity: 'hours', // Optimize for hourly/daily data
     },
-    expireAfterSeconds: 31536000, // Auto-delete data older than 1 year (365 days)
 });
 
 ohlcSchema.index({ symbol: 1, exchange: 1, timeframe: 1, timestamp: -1 });

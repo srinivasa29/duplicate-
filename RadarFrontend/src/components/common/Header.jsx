@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, useLocation, Link } from "react-router-dom";
 import {
     LayoutDashboard,
     Star,
@@ -16,10 +16,10 @@ import {
     LogOut,
     Menu,
     GraduationCap,
-    AlertTriangle,
 } from "lucide-react";
 import { useHeaderData } from "../../hooks/useHeaderData";
 import { fetchMarketData, fetchTrendingSearches, logSearchQuery } from "../../api/marketApi";
+import { isValidSymbolSync } from "../../services/universeService";
 import { updateUserMode } from "../../api/userApi";
 
 const displaySymbol = (value) => String(value || '').replace(/\.(NS|BO)$/i, '');
@@ -39,10 +39,10 @@ const formatNotificationTime = (value) => {
 
 const Header = ({ activeModule, setActiveModule, onToggleMode }) => {
     const navigate = useNavigate();
+    const location = useLocation();
     const {
         profile,
         userInitial,
-        userImage,
         notifications,
         unreadCount,
         isLoadingNotifications,
@@ -113,31 +113,43 @@ const Header = ({ activeModule, setActiveModule, onToggleMode }) => {
     }, []);
 
     const openStockPage = (value) => {
-        const symbol = String(value || '').trim().toUpperCase().replace(/\.(NS|BO)$/i, '');
+        const symbol = String(value || '').trim();
         if (!symbol) return;
         const mode = localStorage.getItem('mode') || 'INVESTOR';
-        if (mode === 'INVESTOR') {
-            navigate(`/investor/advanced-charts?symbol=${encodeURIComponent(symbol)}`);
-        } else {
-            navigate(`/stocks/${encodeURIComponent(symbol)}`);
+        const path = mode === 'INVESTOR' ? '/investor-stock/' : '/stocks/';
+        navigate(`${path}${encodeURIComponent(symbol.toUpperCase())}`);
+    };
+
+    const navigateInvestorModule = (moduleId) => {
+        if (moduleId === 'DASHBOARD') {
+            navigate('/investor/dashboard');
+            return;
         }
+
+        navigate(`/investor/dashboard/${moduleId.toLowerCase()}`);
     };
 
     const handleSearchSelect = async (item) => {
-        const label = item?.symbol || item?.name || '';
-        setSearchQuery(label);
+        const raw = item?.symbol || item?.name || '';
+        const symbol = displaySymbol(raw);
+        if (!symbol) return;
+
+        setSearchQuery(symbol);
         setShowSearchDropdown(false);
         if (setActiveModule) setActiveModule('WATCHLIST');
-        openStockPage(label);
-        if (label) await logSearchQuery(label);
+        openStockPage(symbol);
+        if (symbol) await logSearchQuery(symbol);
     };
 
     const handleTrendingSelect = async (term) => {
-        setSearchQuery(term);
+        const symbol = displaySymbol(term);
+        if (!symbol) return;
+
+        setSearchQuery(symbol);
         setShowSearchDropdown(false);
         if (setActiveModule) setActiveModule('WATCHLIST');
-        openStockPage(term);
-        await logSearchQuery(term);
+        openStockPage(symbol);
+        await logSearchQuery(symbol);
     };
 
     return (
@@ -161,13 +173,18 @@ const Header = ({ activeModule, setActiveModule, onToggleMode }) => {
                     ].map((item) => (
                         <button
                             key={item.id}
-                            onClick={() => {
-                                if (setActiveModule) {
-                                    setActiveModule(item.id);
-                                } else {
-                                    navigate(item.id === 'DASHBOARD' ? '/investor/dashboard' : `/investor/dashboard?module=${item.id}`);
-                                }
-                            }}
+                                onClick={() => {
+                                    if (setActiveModule) {
+                                        setActiveModule(item.id);
+                                    }
+
+                                    if (location.pathname.startsWith('/investor/dashboard')) {
+                                        navigateInvestorModule(item.id);
+                                        return;
+                                    }
+
+                                    navigate(item.id === 'DASHBOARD' ? '/investor/dashboard' : `/investor/dashboard/${item.id.toLowerCase()}`);
+                                }}
                             className="flex items-center gap-2.5 text-[13px] font-black tracking-tight transition-all duration-300 opacity-100 hover:text-blue-700"
                             style={{ color: '#3E84F6' }}
                         >
@@ -200,12 +217,8 @@ const Header = ({ activeModule, setActiveModule, onToggleMode }) => {
                                     e.preventDefault();
                                     setHighlightedIndex((prev) => (prev - 1 + optionsLength) % optionsLength);
                                 } else if (e.key === 'Enter') {
-                                    if (usingSearchResults) {
-                                        if (searchResults.length > 0 && highlightedIndex >= 0) {
-                                            await handleSearchSelect(searchResults[highlightedIndex]);
-                                        } else {
-                                            await handleTrendingSelect(searchQuery.trim().toUpperCase());
-                                        }
+                                    if (usingSearchResults && searchResults.length > 0) {
+                                        await handleSearchSelect(searchResults[Math.max(0, highlightedIndex)]);
                                     } else if (!usingSearchResults && trendingSearches.length > 0) {
                                         await handleTrendingSelect(trendingSearches[Math.max(0, highlightedIndex)]);
                                     }
@@ -218,24 +231,17 @@ const Header = ({ activeModule, setActiveModule, onToggleMode }) => {
                                 {isSearching ? (
                                     <div className="px-4 py-3 text-xs font-semibold text-slate-500">Searching...</div>
                                 ) : searchQuery.trim().length > 0 ? (
-                                    searchResults.length > 0 ? (
-                                        searchResults.map((item, idx) => (
-                                            <button key={idx} onClick={() => handleSearchSelect(item)} className={`w-full text-left px-4 py-3 border-b border-blue-50 ${highlightedIndex === idx ? 'bg-blue-50' : 'hover:bg-blue-50'}`}>
-                                                <div className="flex items-center justify-between">
-                                                    <div>
-                                                        <p className="text-xs font-black text-slate-800">{displaySymbol(item.symbol)}</p>
-                                                        <p className="text-[10px] text-slate-500">{item.name}</p>
-                                                    </div>
-                                                    <span className="text-[10px] font-bold text-[#3E84F6]">{item.type}</span>
+                                    searchResults.map((item, idx) => (
+                                        <button key={idx} onClick={() => handleSearchSelect(item)} className={`w-full text-left px-4 py-3 border-b border-blue-50 ${highlightedIndex === idx ? 'bg-blue-50' : 'hover:bg-blue-50'}`}>
+                                            <div className="flex items-center justify-between">
+                                                <div>
+                                                    <p className="text-xs font-black text-slate-800">{displaySymbol(item.symbol)}</p>
+                                                    <p className="text-[10px] text-slate-500">{item.name}</p>
                                                 </div>
-                                            </button>
-                                        ))
-                                    ) : (
-                                        <button onClick={() => handleTrendingSelect(searchQuery.trim().toUpperCase())} className="w-full text-left px-4 py-3 hover:bg-blue-50 transition-colors">
-                                            <p className="text-xs font-black text-slate-800">Search for '{searchQuery.toUpperCase()}'</p>
-                                            <p className="text-[10px] text-slate-500">Press Enter to navigate directly</p>
+                                                <span className="text-[10px] font-bold text-[#3E84F6]">{item.type}</span>
+                                            </div>
                                         </button>
-                                    )
+                                    ))
                                 ) : (
                                     <div className="px-4 py-3">
                                         <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2">Trending</p>
@@ -291,15 +297,15 @@ const Header = ({ activeModule, setActiveModule, onToggleMode }) => {
                         </div>
 
                         <div className="relative">
-                            <div onClick={() => setIsProfileOpen(!isProfileOpen)} className="w-9 h-9 rounded-full bg-[#3E84F6] text-white flex items-center justify-center text-xs font-black cursor-pointer hover:scale-110 transition-all shadow-lg shadow-blue-500/20 overflow-hidden">
-                                {userImage ? <img src={userImage} alt="Profile" className="w-full h-full object-cover" /> : userInitial}
+                            <div onClick={() => setIsProfileOpen(!isProfileOpen)} className="w-9 h-9 rounded-full bg-[#3E84F6] text-white flex items-center justify-center text-xs font-black cursor-pointer hover:scale-110 transition-all shadow-lg shadow-blue-500/20">
+                                {userInitial}
                             </div>
                             {isProfileOpen && (
                                 <div className="absolute right-0 top-12 w-[320px] bg-white border border-slate-100 rounded-[28px] shadow-[0_20px_50px_rgba(0,0,0,0.12)] overflow-hidden z-[100] animate-in fade-in slide-in-from-top-2">
                                     {/* Header Section with Avatar */}
                                     <div className="px-6 py-5 bg-[#F8FAFF] flex items-center gap-4">
-                                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#4F46E5] to-[#7C3AED] flex items-center justify-center text-white font-black text-lg shadow-lg shadow-blue-500/20 flex-shrink-0 overflow-hidden">
-                                            {userImage ? <img src={userImage} alt="Profile" className="w-full h-full object-cover" /> : userInitial}
+                                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#4F46E5] to-[#7C3AED] flex items-center justify-center text-white font-black text-lg shadow-lg shadow-blue-500/20 flex-shrink-0">
+                                            {userInitial}
                                         </div>
                                         <div className="overflow-hidden">
                                             <p className="text-base font-black text-slate-900 leading-tight">{profile?.username || 'User'}</p>

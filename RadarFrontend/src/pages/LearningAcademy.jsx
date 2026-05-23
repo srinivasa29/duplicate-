@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { BookOpen, BookMarked, PlayCircle, Award, ChevronRight, ChevronLeft, CheckCircle, Circle, Zap, Clock, BarChart2, ArrowLeft, X } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { BookOpen, BookMarked, PlayCircle, Award, ChevronRight, ChevronLeft, CheckCircle, Circle, Zap, Clock, BarChart2, ArrowLeft, X, User } from 'lucide-react';
 import { fetchCourses, saveProgress, submitQuiz } from '../api/learningApi';
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -15,25 +16,64 @@ const LIGHT_COLOR_MAP = {
   emerald: { bg: 'bg-emerald-50', text: 'text-emerald-600',border: 'border-emerald-200',badge: 'bg-emerald-100 text-emerald-700', bar: 'bg-emerald-600'},
 };
 
-const renderContent = (text = '') =>
-  text.split('\n').map((line, i) => {
-    if (!line.trim()) return <div key={i} className="h-3" />;
-    // Bold **text**
-    const parts = line.split(/\*\*(.*?)\*\*/g);
-    const rendered = parts.map((p, j) => j % 2 === 1 ? <strong key={j}>{p}</strong> : p);
-    if (line.startsWith('- ')) return <li key={i} className="ml-4 list-disc">{rendered.slice(1)}</li>;
-    return <p key={i} className="leading-relaxed">{rendered}</p>;
+const parseBold = (text) => {
+  const parts = text.split(/\*\*(.*?)\*\*/g);
+  return parts.map((p, j) => j % 2 === 1 ? <strong key={j}>{p}</strong> : p);
+};
+
+const renderContent = (text = '') => {
+  const lines = text.split('\n');
+  const elements = [];
+  let listBuffer = [];
+
+  const flushList = (key) => {
+    if (listBuffer.length > 0) {
+      elements.push(
+        <ul key={`ul-${key}`} className="ml-5 space-y-1 list-disc">
+          {listBuffer}
+        </ul>
+      );
+      listBuffer = [];
+    }
+  };
+
+  lines.forEach((line, i) => {
+    if (!line.trim()) {
+      flushList(i);
+      elements.push(<div key={i} className="h-2" />);
+    } else if (line.startsWith('- ')) {
+      const bulletText = line.slice(2); // strip leading "- "
+      listBuffer.push(
+        <li key={i} className="leading-relaxed">
+          {parseBold(bulletText)}
+        </li>
+      );
+    } else {
+      flushList(i);
+      elements.push(
+        <p key={i} className="leading-relaxed">
+          {parseBold(line)}
+        </p>
+      );
+    }
   });
 
-const LOCAL_KEY = (id) => `radar_academy_progress_${id}`;
+  flushList('end');
+  return elements;
+};
 
-const loadLocalProgress = (courseId) => {
-  try { return JSON.parse(localStorage.getItem(LOCAL_KEY(courseId)) || '{}'); }
+const LOCAL_KEY = (id, mode = '') => {
+  const prefix = mode ? `${mode}_` : '';
+  return `radar_academy_progress_${prefix}${id}`;
+};
+
+const loadLocalProgress = (courseId, mode = '') => {
+  try { return JSON.parse(localStorage.getItem(LOCAL_KEY(courseId, mode)) || '{}'); }
   catch { return {}; }
 };
 
-const saveLocalProgress = (courseId, data) => {
-  localStorage.setItem(LOCAL_KEY(courseId), JSON.stringify(data));
+const saveLocalProgress = (courseId, data, mode = '') => {
+  localStorage.setItem(LOCAL_KEY(courseId, mode), JSON.stringify(data));
 };
 
 // ── Course Card ──────────────────────────────────────────────────────────────
@@ -87,7 +127,7 @@ function CourseCard({ course, isTrader, onClick, progress }) {
 }
 
 // ── Quiz Component ───────────────────────────────────────────────────────────
-function QuizSection({ quiz, courseId, isTrader }) {
+function QuizSection({ quiz, courseId, isTrader, onFinish }) {
   const [answers, setAnswers] = useState({});
   const [result, setResult] = useState(null);
   const [submitting, setSubmitting] = useState(false);
@@ -144,12 +184,26 @@ function QuizSection({ quiz, courseId, isTrader }) {
               </div>
             ))}
           </div>
-          <button
-            onClick={reset}
-            className={`mt-5 px-5 py-2 rounded-xl font-bold text-sm transition-all ${isTrader ? 'bg-white/10 text-white hover:bg-white/20' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
-          >
-            Try Again
-          </button>
+          <div className="flex gap-3 justify-center mt-5 flex-wrap">
+            {result.passed && onFinish && (
+              <button
+                onClick={onFinish}
+                className={`px-6 py-2.5 rounded-xl font-black text-sm transition-all flex items-center gap-2 ${
+                  isTrader
+                    ? 'bg-emerald-500 text-white hover:bg-emerald-400'
+                    : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-lg shadow-emerald-100'
+                }`}
+              >
+                ✅ Finish Course →
+              </button>
+            )}
+            <button
+              onClick={reset}
+              className={`px-5 py-2 rounded-xl font-bold text-sm transition-all ${isTrader ? 'bg-white/10 text-white hover:bg-white/20' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+            >
+              Try Again
+            </button>
+          </div>
         </div>
       ) : (
         <div className="space-y-4">
@@ -192,10 +246,10 @@ function QuizSection({ quiz, courseId, isTrader }) {
 }
 
 // ── Course Reader ────────────────────────────────────────────────────────────
-function CourseReader({ course, isTrader, onBack }) {
+function CourseReader({ course, isTrader, onBack, mode }) {
   const [chapterIdx, setChapterIdx] = useState(0);
   const [showQuiz, setShowQuiz] = useState(false);
-  const [progress, setProgress] = useState(() => loadLocalProgress(course.id));
+  const [progress, setProgress] = useState(() => loadLocalProgress(course.id, mode));
 
   const chapter = course.chapters?.[chapterIdx];
   const totalChapters = course.chapters?.length || 0;
@@ -203,7 +257,7 @@ function CourseReader({ course, isTrader, onBack }) {
   const markDone = () => {
     const next = { ...progress, chapters: { ...progress.chapters, [chapter.id]: true } };
     setProgress(next);
-    saveLocalProgress(course.id, next);
+    saveLocalProgress(course.id, next, mode);
     saveProgress(course.id, chapter.id, true);
   };
 
@@ -279,7 +333,7 @@ function CourseReader({ course, isTrader, onBack }) {
         {/* Main content */}
         <div className="flex-1 overflow-y-auto min-h-0">
           {showQuiz ? (
-            <QuizSection quiz={course.quiz} courseId={course.id} isTrader={isTrader} />
+            <QuizSection quiz={course.quiz} courseId={course.id} isTrader={isTrader} onFinish={onBack} />
           ) : chapter ? (
             <div className="space-y-4">
               <div className="flex items-start justify-between gap-4">
@@ -338,7 +392,10 @@ function CourseReader({ course, isTrader, onBack }) {
 
 // ── Main Component ───────────────────────────────────────────────────────────
 export default function LearningAcademy() {
+  const navigate = useNavigate();
   const isTrader = localStorage.getItem('mode') === 'TRADER';
+  const mode     = isTrader ? 'trader' : 'investor';
+  const audience = isTrader ? 'trader' : 'investor';
   const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeCourse, setActiveCourse] = useState(null);
@@ -347,17 +404,25 @@ export default function LearningAcademy() {
   useEffect(() => {
     let alive = true;
     setLoading(true);
-    fetchCourses().then(data => {
+    fetchCourses(audience).then(data => {
       if (!alive) return;
       setCourses(data);
-      // Load local progress for each course
       const pm = {};
-      data.forEach(c => { pm[c.id] = loadLocalProgress(c.id); });
+      data.forEach(c => { pm[c.id] = loadLocalProgress(c.id, mode); });
       setProgressMap(pm);
       setLoading(false);
     });
     return () => { alive = false; };
   }, []);
+
+  // Re-sync progress from localStorage whenever user returns to the course list
+  useEffect(() => {
+    if (!activeCourse && courses.length > 0) {
+      const pm = {};
+      courses.forEach(c => { pm[c.id] = loadLocalProgress(c.id, mode); });
+      setProgressMap(pm);
+    }
+  }, [activeCourse, courses]);
 
   const overallPct = (() => {
     if (!courses.length) return 0;
@@ -373,6 +438,7 @@ export default function LearningAcademy() {
           <CourseReader
             course={activeCourse}
             isTrader={isTrader}
+            mode={mode}
             onBack={() => setActiveCourse(null)}
           />
         ) : (
@@ -388,15 +454,25 @@ export default function LearningAcademy() {
                   Master the markets with interactive courses designed for {isTrader ? 'active traders' : 'long-term investors'}.
                 </p>
               </div>
-              {overallPct > 0 && (
-                <div className="text-right">
-                  <div className={`text-3xl font-black ${isTrader ? 'text-[#00f3ff]' : 'text-blue-600'}`}>{overallPct}%</div>
-                  <div className={`text-xs font-bold ${isTrader ? 'text-slate-500' : 'text-slate-400'}`}>Overall Progress</div>
-                  <div className={`mt-1 w-32 h-1.5 rounded-full ${isTrader ? 'bg-white/10' : 'bg-slate-100'}`}>
-                    <div className={`h-1.5 rounded-full ${isTrader ? 'bg-[#00f3ff]' : 'bg-blue-500'}`} style={{ width: `${overallPct}%` }} />
+              <div className="flex items-center gap-4">
+                {overallPct > 0 && (
+                  <div className="text-right">
+                    <div className={`text-3xl font-black ${isTrader ? 'text-[#00f3ff]' : 'text-blue-600'}`}>{overallPct}%</div>
+                    <div className={`text-xs font-bold ${isTrader ? 'text-slate-500' : 'text-slate-400'}`}>Overall Progress</div>
+                    <div className={`mt-1 w-32 h-1.5 rounded-full ${isTrader ? 'bg-white/10' : 'bg-slate-100'}`}>
+                      <div className={`h-1.5 rounded-full ${isTrader ? 'bg-[#00f3ff]' : 'bg-blue-500'}`} style={{ width: `${overallPct}%` }} />
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
+                {!isTrader && (
+                  <button
+                    onClick={() => navigate('/investor/profile')}
+                    className="px-4 py-3 rounded-xl bg-blue-50 text-blue-600 text-xs font-black border border-blue-100 hover:bg-blue-100 transition-all flex items-center gap-2"
+                  >
+                    <User size={14} /> Profile
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Course grid */}

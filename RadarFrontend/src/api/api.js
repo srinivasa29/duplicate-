@@ -53,32 +53,36 @@ const AUTH_KEYS = ['token', 'user', 'mode', 'userId', 'userEmail'];
 const clearAuthAndRedirect = () => {
     AUTH_KEYS.forEach(k => localStorage.removeItem(k));
     // Only redirect if not already on an auth page
-    if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
-        window.location.href = '/login';
+    if (typeof window !== 'undefined') {
+        const publicPaths = ['/login', '/register', '/forgot-password', '/reset-password'];
+        const isPublicPath = publicPaths.some(p => window.location.pathname.startsWith(p));
+        if (!isPublicPath) {
+            window.location.href = '/login';
+        }
     }
 };
 
 api.interceptors.response.use(
     (response) => {
         if (response && typeof response === 'object' && response.data !== undefined) {
-            //response.data = sanitizeStockSuffixes(response.data);
+            response.data = sanitizeStockSuffixes(response.data);
         }
         return response;
     },
     (error) => {
         const status = error.response?.status;
         const msg = error.response?.data?.error || '';
+        const hasToken = typeof window !== 'undefined' && Boolean(localStorage.getItem('token'));
 
-        // Stale / invalid token — wipe it and force re-login
-        // DISABLED for development bypass
-        /*
-        if (status === 401 && (msg.includes('token failed') || msg.includes('invalid signature') || msg.includes('Not authorized'))) {
+        // If there is a 401, clear the stale token and force a re-login.
+        // Even if there isn't a token, if a 401 is hit, they should be redirected to login unless they are already on a public route.
+        if (status === 401) {
             clearAuthAndRedirect();
             return Promise.reject(error);
         }
-        */
 
-        if (typeof window !== 'undefined' && msg) {
+        // Dispatch api-error event for non-auth errors only (avoids spurious error popups on 401)
+        if (typeof window !== 'undefined' && msg && status !== 401) {
             const event = new CustomEvent('api-error', { detail: { message: msg } });
             window.dispatchEvent(event);
         }
@@ -86,25 +90,34 @@ api.interceptors.response.use(
     }
 );
 
-export const saveToDefaultWatchlist = async (symbol) => {
+export const toggleWatchlist = async (symbol, mode) => {
     try {
-        const watchlistsRes = await api.get('/watchlist');
+        const params = mode ? { mode } : {};
+        const watchlistsRes = await api.get('/watchlist', { params });
+        let watchlists = watchlistsRes.data?.data || watchlistsRes.data || [];
+        
         let defaultId = null;
-        
-        if (watchlistsRes.data?.length > 0) {
-            defaultId = watchlistsRes.data[0]._id;
+        if (!watchlists || watchlists.length === 0) {
+            const createRes = await api.post('/watchlist', { name: mode === 'investor' ? 'Investor Portfolio' : 'Trader Watchlist', mode });
+            defaultId = createRes.data?._id;
+            watchlists = [createRes.data];
         } else {
-            const createRes = await api.post('/watchlist', { name: 'My Watchlist' });
-            defaultId = createRes.data._id;
+            defaultId = watchlists[0]._id;
         }
-        
-        if (defaultId) {
+
+        const isWatched = (watchlists[0].items || []).some(
+            i => String(i.symbol || i).replace(/\.(NS|BO)$/i, '') === String(symbol).replace(/\.(NS|BO)$/i, '')
+        );
+
+        if (isWatched) {
+            const removeRes = await api.delete(`/watchlist/${defaultId}/remove/${encodeURIComponent(symbol)}`);
+            return { action: 'removed', watchlist: removeRes.data };
+        } else {
             const addRes = await api.post(`/watchlist/${defaultId}/add`, { symbol });
-            return { success: true, data: addRes.data };
+            return { action: 'added', watchlist: addRes.data };
         }
-        throw new Error("Could not find or create a watchlist");
     } catch (error) {
-        console.error("Failed to save to watchlist:", error);
+        console.error('Watchlist toggle failed:', error);
         throw error;
     }
 };

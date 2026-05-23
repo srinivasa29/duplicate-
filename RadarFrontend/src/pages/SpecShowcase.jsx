@@ -137,7 +137,7 @@ export default function SpecShowcasePage() {
           <section className="rounded-2xl border border-white/10 bg-[#0f172a] p-6">
             <h2 className="text-lg font-semibold text-[#e2e8f0]">Already implemented components</h2>
             <p className="mt-2 text-sm text-[#94a3b8]">
-              Existing live implementations remain on current routes: Navbar/Footer on <code>/</code>, TraderDashboard on <code>/dashboard/trader</code>, InvestorDashboard on <code>/dashboard/investor</code>.
+              Existing live implementations remain on current routes: Navbar/Footer on <code>/</code>, TraderDashboard on <code>/trader/dashboard</code>, InvestorDashboard on <code>/investor/dashboard</code>.
             </p>
           </section>
 

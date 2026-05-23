@@ -275,7 +275,13 @@ const fetchCryptoHistory = async (symbol, interval) => {
 
         return response.data.map((candle) => ({
             date: new Date(candle[0]).toLocaleString(),
-            price: Number(candle[4]),
+            timestamp: candle[0],
+            open: Number(candle[1]),
+            high: Number(candle[2]),
+            low: Number(candle[3]),
+            close: Number(candle[4]),
+            volume: Number(candle[5]),
+            price: Number(candle[4]), // Alias for backward compatibility
         }));
     } catch (error) {
         console.error('Binance crypto history fetch failed:', error.message);

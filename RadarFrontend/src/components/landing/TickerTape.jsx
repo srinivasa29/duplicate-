@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { fetchMarketData } from "../../api/marketApi";
+import { fetchLiveUniversePrices } from "../../services/apiHelpers";
 
 /* ─── Keyframes injected once into the document head ─── */
 const STYLE_ID = "ticker-tape-keyframes";
@@ -24,17 +24,6 @@ const fallbackTickers = [
     { symbol: "GOLD",    value: "2,045.30",  change: "+0.15%" },
     { symbol: "EUR/USD", value: "1.0950",    change: "-0.05%" },
     { symbol: "AAPL",    value: "185.92",    change: "+0.55%" },
-];
-
-const indiaFallbackTickers = [
-    { symbol: "NIFTY 50", value: "21,731.40", change: "+0.55%" },
-    { symbol: "SENSEX",   value: "71,847.57", change: "+0.61%" },
-    { symbol: "BANKNIFTY",value: "48,292.25", change: "-0.21%" },
-    { symbol: "RELIANCE", value: "₹2,968.50", change: "+1.20%" },
-    { symbol: "TCS",      value: "₹4,098.20", change: "+0.85%" },
-    { symbol: "HDFCBANK", value: "₹1,638.60", change: "-0.45%" },
-    { symbol: "INFY",     value: "₹1,672.90", change: "+0.30%" },
-    { symbol: "ITC",      value: "₹427.30",   change: "+0.15%" },
 ];
 
 const investorClasses = {
@@ -71,30 +60,7 @@ const darkClasses = {
 };
 
 export default function TickerTape({ variant = "dark" }) {
-    const isInvestor = variant === "investor";
-    
-    const getFallbackTickers = () => {
-        if (!isInvestor) return fallbackTickers;
-        
-        const savedCustom = localStorage.getItem('investorTickerCustom');
-        let customStocks = savedCustom ? JSON.parse(savedCustom) : [];
-        // Auto-correct typo if present
-        customStocks = customStocks.map(s => s.replace('RELAINCE', 'RELIANCE'));
-        const mandatorySymbols = ["NIFTY 50", "SENSEX", "BANKNIFTY"];
-        
-        // Return dummy data for custom stocks if backend fails
-        const customDummies = customStocks.map(s => ({
-            symbol: s.split('.')[0],
-            value: "--",
-            change: "--%"
-        }));
-
-        const indexDummies = indiaFallbackTickers.filter(t => mandatorySymbols.includes(t.symbol));
-
-        return [...indexDummies, ...customDummies];
-    };
-
-    const [items, setItems]       = useState(getFallbackTickers());
+    const [items, setItems]       = useState(fallbackTickers);
     const [error, setError]       = useState(false);
     const [isLoading, setLoading] = useState(true);
     const [hovered, setHovered]   = useState(false);
@@ -106,71 +72,31 @@ export default function TickerTape({ variant = "dark" }) {
             try {
                 setLoading(true);
                 setError(false);
-                
-                const savedCustom = localStorage.getItem('investorTickerCustom');
-                let customStocks = savedCustom ? JSON.parse(savedCustom) : [];
-                // Auto-correct typo
-                const hadTypo = customStocks.some(s => s.includes('RELAINCE'));
-                customStocks = customStocks.map(s => s.replace('RELAINCE', 'RELIANCE'));
-                if (hadTypo) {
-                    localStorage.setItem('investorTickerCustom', JSON.stringify(customStocks));
-                }
-                const mandatoryIndexes = ["NIFTY 50", "SENSEX", "BANKNIFTY"];
-                const allSymbols = [...mandatoryIndexes, ...customStocks].join(',');
-                
-                let res;
-                if (isInvestor) {
-                    const { default: api } = await import("../../api/api");
-                    const response = await api.get(`/market/quotes?symbols=${encodeURIComponent(allSymbols)}`);
-                    res = response.data?.data || [];
-                } else {
-                    res = await fetchMarketData({ category: "index", limit: 8 });
-                }
-                
-                let processedRes = res;
-                if (isInvestor && res && res.length > 0) {
-                    processedRes = res.filter(item => {
-                        const sym = String(item.symbol || item.name || '').toUpperCase();
-                        const baseSym = sym.split('.')[0];
-                        return sym.endsWith('.NS') || sym.endsWith('.BO') || mandatoryIndexes.includes(sym) || sym.includes('NIFTY') || sym.includes('SENSEX') || sym.includes('BANKNIFTY') || customStocks.some(c => c.split('.')[0] === baseSym);
-                    });
-                }
-                
-                if (processedRes && processedRes.length > 0) {
-                    setItems(processedRes.map((item) => {
-                        const type        = (item.type || item.category || "").toLowerCase();
-                        const isCrypto    = type === "crypto" || type === "cryptocurrency";
-                        const isStock     = type === "stock" || type === "equity";
-                        const currSymbol  = isCrypto ? "$" : (isInvestor && !isStock ? "" : "₹");
-                        const price       = Number(item.price);
+                const res = await fetchLiveUniversePrices();
+                if (res && res.length > 0) {
+                    // Take first 8 items; map them to display format
+                    setItems(res.slice(0, 8).map((item) => {
+                        const price       = Number(item.price ?? item.ltp ?? 0);
                         return {
-                            symbol: String(item.symbol || item.name || "ASSET").split(".")[0].substring(0, 10),
-                            value:  Number.isFinite(price) ? `${currSymbol}${price.toLocaleString()}` : "--",
+                            symbol: String(item.symbol || "ASSET").split(".")[0].substring(0, 10),
+                            value:  Number.isFinite(price) ? `₹${price.toLocaleString()}` : "--",
                             change: (() => {
-                                const raw  = Number(item.change_24h ?? item.change ?? 0);
+                                const raw  = Number(item.change_24h ?? item.changePercent ?? item.pChange ?? 0);
                                 const safe = Number.isFinite(raw) ? raw : 0;
                                 return `${safe > 0 ? "+" : ""}${safe.toFixed(2)}%`;
                             })(),
                         };
                     }));
-                } else if (isInvestor) {
-                    setItems(getFallbackTickers());
                 }
             } catch (err) {
                 console.error("Failed to load ticker tape:", err);
                 setError(true);
-                if (isInvestor) setItems(getFallbackTickers());
             } finally {
                 setLoading(false);
             }
         };
-
         load();
-
-        const handleUpdate = () => load();
-        window.addEventListener('ticker_tape_updated', handleUpdate);
-        return () => window.removeEventListener('ticker_tape_updated', handleUpdate);
-    }, [isInvestor]);
+    }, []);
 
     /* 4 copies so -25% == exactly 1 copy — seamless loop */
     const duplicatedItems = useMemo(() => [...items, ...items, ...items, ...items], [items]);

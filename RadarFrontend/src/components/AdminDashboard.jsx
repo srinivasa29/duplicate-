@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useSystemStatus } from '../hooks/useAdminStatus';
+import { useSystemStatus, useProviderHealth } from '../hooks/useAdminStatus';
 import { useQuoteStats, useRateLimits } from '../hooks/useRealtimeQuote';
 import {
     triggerManualUpdate,
@@ -22,6 +22,8 @@ const AdminDashboard = () => {
         overallHealth,
         allSystemsOperational,
     } = useSystemStatus(10000); // 10s refresh
+
+    const { health: providerHealth, loading: providerLoading } = useProviderHealth(15000); // 15s refresh
 
     const { stats: quoteStats } = useQuoteStats(30000); // 30s refresh
     const { limits: rateLimits } = useRateLimits(60000); // 60s refresh
@@ -338,9 +340,35 @@ const AdminDashboard = () => {
                     )}
                 </div>
 
-                {}
+                {/* Price Provider Health */}
                 <div className="bg-white p-6 rounded-lg shadow lg:col-span-2">
-                    <h3 className="text-xl font-bold mb-4">ðŸ“Š Real-Time API Usage</h3>
+                    <h3 className="text-xl font-bold mb-4 flex items-center">
+                        <span className={`w-3 h-3 rounded-full mr-2 ${providerHealth?.overallHealth === 'healthy' ? 'bg-green-500' : 'bg-yellow-500'}`} />
+                        Price Provider Waterfall Status
+                    </h3>
+                    {providerLoading ? (
+                        <p>Loading...</p>
+                    ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            {providerHealth?.providers?.map((provider) => (
+                                <div key={provider.name} className="border p-4 rounded">
+                                    <h4 className="font-semibold mb-2 capitalize flex items-center">
+                                        <span className={`w-2 h-2 rounded-full mr-2 ${provider.healthy ? 'bg-green-500' : 'bg-red-500'}`} />
+                                        {provider.name}
+                                    </h4>
+                                    <p className="text-sm">Status: {provider.healthy ? '✅ Healthy' : '❌ Cooldown'}</p>
+                                    <p className="text-sm">Requests: {provider.requests}</p>
+                                    <p className="text-sm">Success Rate: {provider.successRate}%</p>
+                                    <p className="text-sm">Avg Response: {provider.avgResponseTime}ms</p>
+                                    <p className="text-sm">Last Used: {provider.lastUsed ? new Date(provider.lastUsed).toLocaleTimeString() : 'Never'}</p>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+
+                {/* Real-Time API Usage */}
+                <div className="bg-white p-6 rounded-lg shadow lg:col-span-2">
                     {!quoteStats ? (
                         <p>Loading...</p>
                     ) : (

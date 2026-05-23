@@ -4,17 +4,24 @@ import { fetchMarketData, fetchMarketHistory, fetchMarketNews } from '../api/mar
 import { fetchTechnicalSummary } from '../api/technicalApi';
 import { fetchRealtimeQuote } from '../api/quotesApi';
 import api from '../api/api';
+import { fetchStockFundamentals } from '../api/fundamentalApi';
 import Header from '../components/common/Header';
 
-const BACKEND_SYMBOL_MAP = {
-    RELIANCE: 'RELIANCE.NS',
-    HDFCBANK: 'HDFCBANK.NS',
-    INFY: 'INFY.NS',
-    TCS: 'TCS.NS',
-    SBIN: 'SBIN.NS',
-    ICICIBANK: 'ICICIBANK.NS',
-    ITC: 'ITC.NS',
-    LT: 'LT.NS',
+import { getAssetMetadata } from '../utils/assetClassifier';
+
+const INDEX_MAP = {
+    NIFTY: '^NSEI', BANKNIFTY: '^NSEBANK', SENSEX: '^BSESN',
+    FINNIFTY: 'NIFTY_FIN_SERVICE.NS', MIDCPNIFTY: '^NSEMDCP50', INDIAVIX: '^INDIAVIX',
+};
+
+const deriveApiSymbol = (symbol) => {
+    const upper = String(symbol || '').toUpperCase();
+    const meta = getAssetMetadata(upper);
+    if (meta.type === 'Index')  return INDEX_MAP[upper] || `^${upper}`;
+    if (meta.type === 'Crypto') return upper.endsWith('USDT') ? upper : `${upper}USDT`;
+    if (meta.type === 'Forex')  return `${upper}=X`;
+    // Equity — add .NS if no exchange suffix
+    return upper.endsWith('.NS') || upper.endsWith('.BO') ? upper : `${upper}.NS`;
 };
 
 const normalizeSymbol = (value) => String(value || '').trim().toUpperCase().replace(/\.(NS|BO)$/i, '');
@@ -53,10 +60,6 @@ const getPreferredMode = () => {
     return mode === 'TRADER' ? 'TRADER' : 'INVESTOR';
 };
 
-const fetchStockFundamentals = async (symbol) => {
-    const response = await api.get(`/stocks/${encodeURIComponent(symbol)}/fundamentals`);
-    return response?.data?.data ?? null;
-};
 
 const runStockScreener = async (symbol) => {
     const payload = {
@@ -398,7 +401,7 @@ export default function StockPage() {
     const { symbol } = useParams();
 
     const normalizedSymbol = normalizeSymbol(decodeURIComponent(symbol || 'NIFTY 50'));
-    const backendSymbol = BACKEND_SYMBOL_MAP[normalizedSymbol] || normalizedSymbol;
+    const backendSymbol = deriveApiSymbol(normalizedSymbol);
 
     const [mode, setMode] = useState(getPreferredMode());
     const [isLoading, setIsLoading] = useState(true);

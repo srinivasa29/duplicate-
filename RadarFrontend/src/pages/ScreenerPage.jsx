@@ -245,36 +245,50 @@ const ScreenerPage = () => {
   const fetchAndSet = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await runScreenerScan(filters);
-      const raw = data?.results ?? data?.stocks ?? (Array.isArray(data) ? data : []);
+      const res = await runScreenerScan({ limit: 50 });
+      // Backend wraps: { success, data: { results: [...] } }
+      const inner = res?.data ?? res;
+      const raw = inner?.results ?? inner?.stocks ?? (Array.isArray(inner) ? inner : []);
+      
       const normalized = raw.map((s, i) => ({
-        id: s._id || s.id || s.symbol || i,
-        symbol: String(s.symbol || '').replace(/\.(NS|BO)$/i, ''),
-        name: s.name || s.companyName || '',
+        id: s._id || s.id || s.displaySymbol || s.symbol || i,
+        symbol: String(s.displaySymbol || s.symbol || '').replace(/\.(NS|BO)$/i, ''),
+        name: s.name || s.displaySymbol || s.symbol || '',
         price: Number(s.price ?? 0),
         change: Number(s.changePercent ?? s.change ?? 0),
-        changePercent: Number(s.changePercent ?? 0),
+        changePercent: Number(s.changePercent ?? s.change ?? 0),
         volume: Number(s.volume ?? 0),
         sector: s.sector || 'Equity',
-        signal: s.signal || s.signalType || (Number(s.changePercent ?? 0) > 1.5 ? 'BREAKOUT' : 'MOMENTUM'),
-        signalStrength: s.signalStrength || 'Medium',
-        signalType: s.signalType || s.signal || '',
+        signal: s.signal || (Number(s.changePercent ?? s.change ?? 0) > 1.5
+          ? 'BREAKOUT'
+          : s.bias === 'bearish' ? 'PULLBACK' : 'MOMENTUM'),
+        signalStrength: s.signalStrength || (Number(s.confidence ?? s.score ?? 70) > 80 ? 'Strong' : 'Medium'),
+        signalType: s.signalType || s.why || '',
         rsi: Number(s.rsi ?? 50),
         pe: Number(s.pe ?? 0),
-        trend: s.trend || (Number(s.changePercent ?? 0) > 0 ? 'bullish' : 'bearish'),
-        sentiment: Number(s.sentiment ?? (Number(s.changePercent ?? 0) * 10)),
-        strength: s.strength || `Confidence ${Number(s.confidence ?? 72)}%`,
+        trend: s.trend || s.bias || (Number(s.changePercent ?? s.change ?? 0) >= 0 ? 'bullish' : 'bearish'),
+        sentiment: Number(s.sentiment ?? (Number(s.changePercent ?? s.change ?? 0) * 10)),
+        strength: s.strength || `Confidence ${Number(s.confidence ?? s.score ?? 72)}%`,
         entry: Number(s.entry ?? s.price ?? 0),
         target: Number(s.target ?? (s.price ?? 0) * 1.04),
         stopLoss: Number(s.stopLoss ?? s.sl ?? (s.price ?? 0) * 0.985),
         rvol: Number(s.volumeRatio ?? s.rvol ?? 1.2),
-        timeframe: s.timeframe || '5m',
+        timeframe: s.timeframe || '1D',
         chart: s.chart || s.history || [],
       }));
-      setStocks(normalized);
-      setFilteredStocks(normalized);
+
+      // If API returned stocks, use them — otherwise fall back to demo data
+      if (normalized.length > 0) {
+        setStocks(normalized);
+        setFilteredStocks(normalized);
+      } else {
+        setStocks(MOCK_STOCKS);
+        setFilteredStocks(MOCK_STOCKS);
+      }
     } catch (err) {
-      console.warn('ScreenerPage load failed:', err.message);
+      console.warn('ScreenerPage load failed, using demo data:', err.message);
+      setStocks(MOCK_STOCKS);
+      setFilteredStocks(MOCK_STOCKS);
     } finally {
       setLoading(false);
     }

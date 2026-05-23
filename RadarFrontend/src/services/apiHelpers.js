@@ -1,8 +1,10 @@
 
 import axios from 'axios';
+import { getUniqueUniverse } from '../config/marketUniverse';
+import { getCachedUniverse } from './universeService';
 
 
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:5000/api';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 const STOCKS_ENDPOINT = `${API_BASE_URL}/stocks`;
 const WATCHLIST_ENDPOINT = `${API_BASE_URL}/watchlist`;
 const ALERTS_ENDPOINT = `${API_BASE_URL}/alerts`;
@@ -116,6 +118,30 @@ export const fetchUserWatchlist = async () => {
     return response.data;
   } catch (error) {
     console.error('Error fetching watchlist:', error);
+    throw error;
+  }
+};
+
+// Fetch live prices for the locked universe (batched)
+export const fetchLiveUniversePrices = async (opts = {}) => {
+  try {
+    // Prefer cached universe from server; fall back to static list
+    const cached = getCachedUniverse();
+    const universe = (Array.isArray(cached) && cached.length > 0) ? cached : getUniqueUniverse();
+    if (!Array.isArray(universe) || universe.length === 0) return [];
+
+    // Allow caller to override exchange suffix if needed (e.g., '.NSE')
+    const suffix = opts.suffix || '';
+    const symbols = universe.map(s => `${s}${suffix}`).join(',');
+
+    // Backend /market accepts `symbols` query param
+    const response = await axios.get(`${API_BASE_URL.replace('/api','')}/api/market`, {
+      params: { symbols }
+    });
+
+    return response.data?.data ?? response.data;
+  } catch (error) {
+    console.error('Error fetching live universe prices:', error);
     throw error;
   }
 };

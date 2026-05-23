@@ -1,152 +1,464 @@
 [
-  {
-    "id": "fundamentals-101",
-    "title": "Market Fundamentals 101",
-    "category": "Fundamentals",
-    "difficulty": "Beginner",
-    "icon": "BookMarked",
-    "color": "blue",
-    "description": "Learn the core mechanics of order books, liquidity, and market structure.",
-    "duration": "45 min",
-    "chapters": [
-      {
-        "id": "f-1",
-        "title": "What is Market Capitalization?",
-        "content": "Market Capitalization (Market Cap) is the total dollar market value of a company's outstanding shares of stock. It is calculated by multiplying the current share price by the total number of outstanding shares.\n\n**Formula:** Market Cap = Share Price × Total Shares Outstanding\n\n**Categories:**\n- **Large Cap (>₹20,000 Cr):** Stable companies like Reliance, TCS, HDFC Bank. Lower risk, steady returns.\n- **Mid Cap (₹5,000–₹20,000 Cr):** Growth-oriented companies. Moderate risk and reward.\n- **Small Cap (<₹5,000 Cr):** High risk, high potential reward. Requires careful research.\n\nInvestors use market cap to classify stocks and build diversified portfolios. A large-cap-heavy portfolio is generally more stable during market downturns."
-      },
-      {
-        "id": "f-2",
-        "title": "Understanding P/E Ratio",
-        "content": "The Price-to-Earnings (P/E) ratio measures how much investors are willing to pay for each rupee of a company's earnings.\n\n**Formula:** P/E Ratio = Share Price ÷ Earnings Per Share (EPS)\n\n**Interpretation:**\n- **High P/E (>30):** Market expects high future growth. Stock may be overvalued.\n- **Low P/E (<15):** May indicate undervaluation or slow growth expectations.\n- **Negative P/E:** Company is currently unprofitable.\n\n**Sector Comparison is Key.** A P/E of 25 is cheap for an IT company but expensive for a utility company. Always compare within the same sector.\n\n**Example:** If TCS trades at ₹3,800 and EPS is ₹120, P/E = 3800/120 = **31.67x**"
-      },
-      {
-        "id": "f-3",
-        "title": "Order Books and Liquidity",
-        "content": "An order book is a real-time, continuously updated list of buy and sell orders for a specific security.\n\n**Key Components:**\n- **Bid Price:** The highest price a buyer is willing to pay\n- **Ask Price:** The lowest price a seller will accept\n- **Bid-Ask Spread:** The difference between bid and ask. A narrow spread = high liquidity\n\n**Liquidity** refers to how quickly an asset can be bought or sold without affecting its price.\n\n**Why it matters:**\n- Liquid stocks (like Nifty 50 constituents) can be traded in large volumes without slippage\n- Illiquid stocks can have wide spreads, making entries/exits costly\n- During market stress, liquidity can dry up rapidly even in mid-cap stocks\n\n**Depth of Market (DOM):** Shows the volume of buy/sell orders at various price levels, helping you identify support and resistance zones."
-      }
-    ],
-    "quiz": [
-      {
-        "id": "q-f-1",
-        "question": "A company has a share price of ₹500 and 10 crore outstanding shares. What is its market cap?",
-        "options": ["₹50 Cr", "₹500 Cr", "₹5,000 Cr", "₹50,000 Cr"],
-        "answer": 2,
-        "explanation": "Market Cap = ₹500 × 10,00,00,000 = ₹5,000 Crore. This falls in the Mid Cap category."
-      },
-      {
-        "id": "q-f-2",
-        "question": "A stock has a P/E ratio of 8 compared to its sector average of 22. What does this suggest?",
-        "options": ["The stock is overvalued", "The stock may be undervalued or have poor growth expectations", "The company has no earnings", "The stock is a large cap"],
-        "answer": 1,
-        "explanation": "A P/E significantly below the sector average often signals undervaluation or slower growth expectations. Always investigate why before investing."
-      },
-      {
-        "id": "q-f-3",
-        "question": "What does a narrow bid-ask spread indicate?",
-        "options": ["Low volatility", "High liquidity", "Low trading volume", "Overvalued stock"],
-        "answer": 1,
-        "explanation": "A narrow bid-ask spread means many buyers and sellers are active, making it easy to enter/exit positions without affecting the price — a sign of high liquidity."
-      }
-    ]
-  },
-  {
-    "id": "technical-analysis",
-    "title": "Technical Analysis Mastery",
-    "category": "Technical Analysis",
-    "difficulty": "Intermediate",
-    "icon": "PlayCircle",
-    "color": "purple",
-    "description": "Master reading price action, volume profiles, and institutional footprints.",
-    "duration": "60 min",
-    "chapters": [
-      {
-        "id": "t-1",
-        "title": "Moving Averages: SMA vs EMA",
-        "content": "Moving averages smooth out price data to identify the direction of the trend.\n\n**Simple Moving Average (SMA):**\nAverages the closing price over N periods. Each period is weighted equally.\n- SMA(20) = Sum of last 20 closes ÷ 20\n- Slower to react to price changes\n\n**Exponential Moving Average (EMA):**\nGives more weight to recent prices, making it more responsive to new information.\n- EMA(20) reacts faster than SMA(20) to price moves\n- Preferred by short-term traders\n\n**Golden Cross vs Death Cross:**\n- **Golden Cross:** 50-day SMA crosses above 200-day SMA → Bullish signal\n- **Death Cross:** 50-day SMA crosses below 200-day SMA → Bearish signal\n\n**Practical use:** When price is above the 200 EMA, stay bullish. When below, be cautious."
-      },
-      {
-        "id": "t-2",
-        "title": "RSI — The Momentum Oscillator",
-        "content": "The Relative Strength Index (RSI) measures the speed and magnitude of price changes on a scale of 0–100.\n\n**Formula:** RSI = 100 − [100 ÷ (1 + RS)], where RS = Average Gain ÷ Average Loss over 14 periods\n\n**Interpretation:**\n- **RSI > 70:** Overbought — price may be due for a pullback\n- **RSI < 30:** Oversold — potential buying opportunity\n- **RSI 40–60:** Neutral zone, trend is moderate\n\n**RSI Divergence (Advanced):**\n- **Bullish Divergence:** Price makes lower lows but RSI makes higher lows → potential reversal up\n- **Bearish Divergence:** Price makes higher highs but RSI makes lower highs → potential reversal down\n\n**Important:** RSI signals are strongest when confirmed by volume and price action. Never use RSI alone."
-      },
-      {
-        "id": "t-3",
-        "title": "Volume Profile and Institutional Footprints",
-        "content": "Volume is the fuel of price moves. Institutional activity leaves distinct volume footprints that retail traders can identify and exploit.\n\n**Key Volume Concepts:**\n- **Volume Spike on Breakout:** Confirms the breakout is genuine, not a fake-out\n- **Low Volume Consolidation:** Market is resting before the next move\n- **Volume Divergence:** Price rises but volume falls → weakening trend\n\n**Volume Profile:**\nShows the amount of volume traded at each price level over a given period.\n- **Point of Control (POC):** Price level with the most volume traded. Acts as a magnet.\n- **Value Area (VA):** Price range where 70% of volume occurred. Defines fair value.\n- **High/Low Volume Nodes:** Areas of acceptance vs. rejection\n\n**Institutional Footprints:**\nLarge funds can't hide their trades. Look for:\n- Large block trades on unusual volume days\n- Accumulation: Stock rises slowly on consistent volume\n- Distribution: Stock falls with high volume — smart money exiting"
-      }
-    ],
-    "quiz": [
-      {
-        "id": "q-t-1",
-        "question": "Which moving average reacts faster to recent price changes?",
-        "options": ["SMA(50)", "SMA(200)", "EMA(20)", "SMA(20)"],
-        "answer": 2,
-        "explanation": "EMA gives more weight to recent prices, making it more responsive than SMA with the same period. EMA(20) will react faster to a sudden price move than SMA(20)."
-      },
-      {
-        "id": "q-t-2",
-        "question": "RSI is at 28 on a 3-month uptrend stock. What should you investigate first?",
-        "options": ["Immediately sell", "Look for bearish divergence", "Look for bullish divergence and volume confirmation", "Ignore — RSI is unreliable"],
-        "answer": 2,
-        "explanation": "RSI below 30 on an uptrend stock may indicate a temporary pullback, not a reversal. Check for bullish divergence and volume confirmation before deciding."
-      },
-      {
-        "id": "q-t-3",
-        "question": "A stock breaks a resistance level on 5x normal volume. What does this signal?",
-        "options": ["Possible fake breakout", "Confirmed breakout with institutional participation", "RSI is overbought", "The stock is overvalued"],
-        "answer": 1,
-        "explanation": "High volume on a breakout confirms that large players are participating, making the breakout more likely to sustain. Low volume breakouts are more prone to failure."
-      }
-    ]
-  },
-  {
-    "id": "risk-management",
-    "title": "Risk Management Strategies",
-    "category": "Risk Management",
-    "difficulty": "Intermediate",
-    "icon": "Award",
-    "color": "emerald",
-    "description": "Protect your capital with position sizing, hedging, and portfolio math.",
-    "duration": "50 min",
-    "chapters": [
-      {
-        "id": "r-1",
-        "title": "The 1% Rule and Position Sizing",
-        "content": "The single most important rule in trading is capital preservation. The **1% Rule** states: never risk more than 1% of your total capital on a single trade.\n\n**Position Sizing Formula:**\nPosition Size = (Account Risk) ÷ (Entry Price − Stop Loss Price)\n\n**Example:**\n- Account: ₹5,00,000\n- Risk per trade (1%): ₹5,000\n- Entry: ₹200, Stop Loss: ₹190\n- Risk per share: ₹10\n- **Position Size = ₹5,000 ÷ ₹10 = 500 shares**\n\n**Why this matters:**\n- Even 10 consecutive losses only cost you 10% of capital\n- Allows you to stay in the game long enough to find your edge\n- Prevents emotional decision-making driven by oversized positions\n\n**Kelly Criterion (Advanced):** A mathematical formula to optimize position size based on your win rate and average win/loss ratio."
-      },
-      {
-        "id": "r-2",
-        "title": "Stop Loss Strategies",
-        "content": "A stop loss is a pre-determined exit point that limits your loss on a trade.\n\n**Types of Stop Losses:**\n\n**1. Fixed Percentage Stop:**\n- Exit if price falls X% from entry\n- Simple but doesn't account for volatility\n\n**2. ATR-Based Stop (Average True Range):**\n- Stop = Entry − (2 × ATR)\n- Adapts to market volatility automatically\n- Best for volatile stocks\n\n**3. Structure-Based Stop:**\n- Place stop below a key support level or swing low\n- Most logical — stops are invalidated only when the thesis breaks\n\n**4. Trailing Stop:**\n- Moves with price to lock in profits\n- Exit when price retraces by X% from the peak\n\n**Common Mistakes:**\n- Moving stop loss deeper into loss — breaks discipline\n- Setting stops at round numbers (easily hunted by market makers)\n- Using the same stop % for all stocks regardless of volatility"
-      },
-      {
-        "id": "r-3",
-        "title": "Portfolio Diversification and Beta",
-        "content": "Diversification reduces unsystematic (stock-specific) risk by spreading investments across uncorrelated assets.\n\n**Beta — Market Sensitivity:**\n- **Beta = 1:** Stock moves in line with the market\n- **Beta > 1:** More volatile than market (e.g., small caps)\n- **Beta < 1:** Less volatile than market (e.g., FMCG, Pharma)\n- **Beta < 0:** Moves inverse to market (rare — gold ETFs sometimes)\n\n**Portfolio Beta Calculation:**\nWeighted average of individual stock betas\n\n**Diversification Principles:**\n- Across **sectors** (IT, Finance, FMCG, Auto)\n- Across **market caps** (Large + Mid + Small)\n- Across **asset classes** (Equity + Debt + Gold)\n- Across **geographies** (Domestic + International funds)\n\n**Correlation:** Truly diversified portfolios hold assets with low or negative correlation. Two IT stocks don't diversify — they move together.\n\n**Rule of thumb:** 15–20 well-chosen stocks across 5–6 sectors gives near-maximum diversification benefit."
-      }
-    ],
-    "quiz": [
-      {
-        "id": "q-r-1",
-        "question": "You have ₹2,00,000 in your account. Entry at ₹150, stop loss at ₹140. How many shares should you buy (using 1% rule)?",
-        "options": ["200 shares", "100 shares", "50 shares", "20 shares"],
-        "answer": 0,
-        "explanation": "Risk per trade = 1% × ₹2,00,000 = ₹2,000. Risk per share = ₹150 − ₹140 = ₹10. Position Size = ₹2,000 ÷ ₹10 = 200 shares."
-      },
-      {
-        "id": "q-r-2",
-        "question": "Which stop loss type automatically adjusts for a stock's volatility?",
-        "options": ["Fixed percentage stop", "ATR-based stop", "Mental stop", "Round number stop"],
-        "answer": 1,
-        "explanation": "ATR (Average True Range) measures recent volatility. An ATR-based stop widens during high volatility and narrows during low volatility, making it the most adaptive approach."
-      },
-      {
-        "id": "q-r-3",
-        "question": "Your portfolio has 80% in IT stocks and 20% in Finance. Is it well-diversified?",
-        "options": ["Yes, it has two sectors", "No, IT stocks are highly correlated with each other", "Yes, if the IT stocks are different companies", "It depends on the market cap"],
-        "answer": 1,
-        "explanation": "80% in a single sector creates massive concentration risk. IT stocks tend to move together (high correlation), so this portfolio behaves almost like a single bet on the IT sector."
-      }
-    ]
-  }
+    {
+        "id":  "fundamentals-101",
+        "title":  "Market Fundamentals 101",
+        "category":  "Fundamentals",
+        "difficulty":  "Beginner",
+        "icon":  "BookMarked",
+        "color":  "blue",
+        "description":  "Learn the core mechanics of order books, liquidity, and market structure.",
+        "duration":  "45 min",
+        "chapters":  [
+                         {
+                             "id":  "f-1",
+                             "title":  "What is Market Capitalization?",
+                             "content":  "Market Capitalization (Market Cap) is the total dollar market value of a company\u0027s outstanding shares of stock. It is calculated by multiplying the current share price by the total number of outstanding shares.\n\n**Formula:** Market Cap = Share Price Ã— Total Shares Outstanding\n\n**Categories:**\n- **Large Cap (\u003eâ‚¹20,000 Cr):** Stable companies like Reliance, TCS, HDFC Bank. Lower risk, steady returns.\n- **Mid Cap (â‚¹5,000â€“â‚¹20,000 Cr):** Growth-oriented companies. Moderate risk and reward.\n- **Small Cap (\u003câ‚¹5,000 Cr):** High risk, high potential reward. Requires careful research.\n\nInvestors use market cap to classify stocks and build diversified portfolios. A large-cap-heavy portfolio is generally more stable during market downturns."
+                         },
+                         {
+                             "id":  "f-2",
+                             "title":  "Understanding P/E Ratio",
+                             "content":  "The Price-to-Earnings (P/E) ratio measures how much investors are willing to pay for each rupee of a company\u0027s earnings.\n\n**Formula:** P/E Ratio = Share Price Ã· Earnings Per Share (EPS)\n\n**Interpretation:**\n- **High P/E (\u003e30):** Market expects high future growth. Stock may be overvalued.\n- **Low P/E (\u003c15):** May indicate undervaluation or slow growth expectations.\n- **Negative P/E:** Company is currently unprofitable.\n\n**Sector Comparison is Key.** A P/E of 25 is cheap for an IT company but expensive for a utility company. Always compare within the same sector.\n\n**Example:** If TCS trades at â‚¹3,800 and EPS is â‚¹120, P/E = 3800/120 = **31.67x**"
+                         },
+                         {
+                             "id":  "f-3",
+                             "title":  "Order Books and Liquidity",
+                             "content":  "An order book is a real-time, continuously updated list of buy and sell orders for a specific security.\n\n**Key Components:**\n- **Bid Price:** The highest price a buyer is willing to pay\n- **Ask Price:** The lowest price a seller will accept\n- **Bid-Ask Spread:** The difference between bid and ask. A narrow spread = high liquidity\n\n**Liquidity** refers to how quickly an asset can be bought or sold without affecting its price.\n\n**Why it matters:**\n- Liquid stocks (like Nifty 50 constituents) can be traded in large volumes without slippage\n- Illiquid stocks can have wide spreads, making entries/exits costly\n- During market stress, liquidity can dry up rapidly even in mid-cap stocks\n\n**Depth of Market (DOM):** Shows the volume of buy/sell orders at various price levels, helping you identify support and resistance zones."
+                         }
+                     ],
+        "quiz":  [
+                     {
+                         "id":  "q-f-1",
+                         "question":  "A company has a share price of â‚¹500 and 10 crore outstanding shares. What is its market cap?",
+                         "options":  [
+                                         "â‚¹50 Cr",
+                                         "â‚¹500 Cr",
+                                         "â‚¹5,000 Cr",
+                                         "â‚¹50,000 Cr"
+                                     ],
+                         "answer":  2,
+                         "explanation":  "Market Cap = â‚¹500 Ã— 10,00,00,000 = â‚¹5,000 Crore. This falls in the Mid Cap category."
+                     },
+                     {
+                         "id":  "q-f-2",
+                         "question":  "A stock has a P/E ratio of 8 compared to its sector average of 22. What does this suggest?",
+                         "options":  [
+                                         "The stock is overvalued",
+                                         "The stock may be undervalued or have poor growth expectations",
+                                         "The company has no earnings",
+                                         "The stock is a large cap"
+                                     ],
+                         "answer":  1,
+                         "explanation":  "A P/E significantly below the sector average often signals undervaluation or slower growth expectations. Always investigate why before investing."
+                     },
+                     {
+                         "id":  "q-f-3",
+                         "question":  "What does a narrow bid-ask spread indicate?",
+                         "options":  [
+                                         "Low volatility",
+                                         "High liquidity",
+                                         "Low trading volume",
+                                         "Overvalued stock"
+                                     ],
+                         "answer":  1,
+                         "explanation":  "A narrow bid-ask spread means many buyers and sellers are active, making it easy to enter/exit positions without affecting the price â€” a sign of high liquidity."
+                     }
+                 ],
+        "audience":  "investor"
+    },
+    {
+        "id":  "technical-analysis",
+        "title":  "Technical Analysis Mastery",
+        "category":  "Technical Analysis",
+        "difficulty":  "Intermediate",
+        "icon":  "PlayCircle",
+        "color":  "purple",
+        "description":  "Master reading price action, volume profiles, and institutional footprints.",
+        "duration":  "60 min",
+        "chapters":  [
+                         {
+                             "id":  "t-1",
+                             "title":  "Moving Averages: SMA vs EMA",
+                             "content":  "Moving averages smooth out price data to identify the direction of the trend.\n\n**Simple Moving Average (SMA):**\nAverages the closing price over N periods. Each period is weighted equally.\n- SMA(20) = Sum of last 20 closes Ã· 20\n- Slower to react to price changes\n\n**Exponential Moving Average (EMA):**\nGives more weight to recent prices, making it more responsive to new information.\n- EMA(20) reacts faster than SMA(20) to price moves\n- Preferred by short-term traders\n\n**Golden Cross vs Death Cross:**\n- **Golden Cross:** 50-day SMA crosses above 200-day SMA â†’ Bullish signal\n- **Death Cross:** 50-day SMA crosses below 200-day SMA â†’ Bearish signal\n\n**Practical use:** When price is above the 200 EMA, stay bullish. When below, be cautious."
+                         },
+                         {
+                             "id":  "t-2",
+                             "title":  "RSI â€” The Momentum Oscillator",
+                             "content":  "The Relative Strength Index (RSI) measures the speed and magnitude of price changes on a scale of 0â€“100.\n\n**Formula:** RSI = 100 âˆ’ [100 Ã· (1 + RS)], where RS = Average Gain Ã· Average Loss over 14 periods\n\n**Interpretation:**\n- **RSI \u003e 70:** Overbought â€” price may be due for a pullback\n- **RSI \u003c 30:** Oversold â€” potential buying opportunity\n- **RSI 40â€“60:** Neutral zone, trend is moderate\n\n**RSI Divergence (Advanced):**\n- **Bullish Divergence:** Price makes lower lows but RSI makes higher lows â†’ potential reversal up\n- **Bearish Divergence:** Price makes higher highs but RSI makes lower highs â†’ potential reversal down\n\n**Important:** RSI signals are strongest when confirmed by volume and price action. Never use RSI alone."
+                         },
+                         {
+                             "id":  "t-3",
+                             "title":  "Volume Profile and Institutional Footprints",
+                             "content":  "Volume is the fuel of price moves. Institutional activity leaves distinct volume footprints that retail traders can identify and exploit.\n\n**Key Volume Concepts:**\n- **Volume Spike on Breakout:** Confirms the breakout is genuine, not a fake-out\n- **Low Volume Consolidation:** Market is resting before the next move\n- **Volume Divergence:** Price rises but volume falls â†’ weakening trend\n\n**Volume Profile:**\nShows the amount of volume traded at each price level over a given period.\n- **Point of Control (POC):** Price level with the most volume traded. Acts as a magnet.\n- **Value Area (VA):** Price range where 70% of volume occurred. Defines fair value.\n- **High/Low Volume Nodes:** Areas of acceptance vs. rejection\n\n**Institutional Footprints:**\nLarge funds can\u0027t hide their trades. Look for:\n- Large block trades on unusual volume days\n- Accumulation: Stock rises slowly on consistent volume\n- Distribution: Stock falls with high volume â€” smart money exiting"
+                         }
+                     ],
+        "quiz":  [
+                     {
+                         "id":  "q-t-1",
+                         "question":  "Which moving average reacts faster to recent price changes?",
+                         "options":  [
+                                         "SMA(50)",
+                                         "SMA(200)",
+                                         "EMA(20)",
+                                         "SMA(20)"
+                                     ],
+                         "answer":  2,
+                         "explanation":  "EMA gives more weight to recent prices, making it more responsive than SMA with the same period. EMA(20) will react faster to a sudden price move than SMA(20)."
+                     },
+                     {
+                         "id":  "q-t-2",
+                         "question":  "RSI is at 28 on a 3-month uptrend stock. What should you investigate first?",
+                         "options":  [
+                                         "Immediately sell",
+                                         "Look for bearish divergence",
+                                         "Look for bullish divergence and volume confirmation",
+                                         "Ignore â€” RSI is unreliable"
+                                     ],
+                         "answer":  2,
+                         "explanation":  "RSI below 30 on an uptrend stock may indicate a temporary pullback, not a reversal. Check for bullish divergence and volume confirmation before deciding."
+                     },
+                     {
+                         "id":  "q-t-3",
+                         "question":  "A stock breaks a resistance level on 5x normal volume. What does this signal?",
+                         "options":  [
+                                         "Possible fake breakout",
+                                         "Confirmed breakout with institutional participation",
+                                         "RSI is overbought",
+                                         "The stock is overvalued"
+                                     ],
+                         "answer":  1,
+                         "explanation":  "High volume on a breakout confirms that large players are participating, making the breakout more likely to sustain. Low volume breakouts are more prone to failure."
+                     }
+                 ],
+        "audience":  "trader"
+    },
+    {
+        "id":  "risk-management",
+        "title":  "Risk Management Strategies",
+        "category":  "Risk Management",
+        "difficulty":  "Intermediate",
+        "icon":  "Award",
+        "color":  "emerald",
+        "description":  "Protect your capital with position sizing, hedging, and portfolio math.",
+        "duration":  "50 min",
+        "chapters":  [
+                         {
+                             "id":  "r-1",
+                             "title":  "The 1% Rule and Position Sizing",
+                             "content":  "The single most important rule in trading is capital preservation. The **1% Rule** states: never risk more than 1% of your total capital on a single trade.\n\n**Position Sizing Formula:**\nPosition Size = (Account Risk) Ã· (Entry Price âˆ’ Stop Loss Price)\n\n**Example:**\n- Account: â‚¹5,00,000\n- Risk per trade (1%): â‚¹5,000\n- Entry: â‚¹200, Stop Loss: â‚¹190\n- Risk per share: â‚¹10\n- **Position Size = â‚¹5,000 Ã· â‚¹10 = 500 shares**\n\n**Why this matters:**\n- Even 10 consecutive losses only cost you 10% of capital\n- Allows you to stay in the game long enough to find your edge\n- Prevents emotional decision-making driven by oversized positions\n\n**Kelly Criterion (Advanced):** A mathematical formula to optimize position size based on your win rate and average win/loss ratio."
+                         },
+                         {
+                             "id":  "r-2",
+                             "title":  "Stop Loss Strategies",
+                             "content":  "A stop loss is a pre-determined exit point that limits your loss on a trade.\n\n**Types of Stop Losses:**\n\n**1. Fixed Percentage Stop:**\n- Exit if price falls X% from entry\n- Simple but doesn\u0027t account for volatility\n\n**2. ATR-Based Stop (Average True Range):**\n- Stop = Entry âˆ’ (2 Ã— ATR)\n- Adapts to market volatility automatically\n- Best for volatile stocks\n\n**3. Structure-Based Stop:**\n- Place stop below a key support level or swing low\n- Most logical â€” stops are invalidated only when the thesis breaks\n\n**4. Trailing Stop:**\n- Moves with price to lock in profits\n- Exit when price retraces by X% from the peak\n\n**Common Mistakes:**\n- Moving stop loss deeper into loss â€” breaks discipline\n- Setting stops at round numbers (easily hunted by market makers)\n- Using the same stop % for all stocks regardless of volatility"
+                         },
+                         {
+                             "id":  "r-3",
+                             "title":  "Portfolio Diversification and Beta",
+                             "content":  "Diversification reduces unsystematic (stock-specific) risk by spreading investments across uncorrelated assets.\n\n**Beta â€” Market Sensitivity:**\n- **Beta = 1:** Stock moves in line with the market\n- **Beta \u003e 1:** More volatile than market (e.g., small caps)\n- **Beta \u003c 1:** Less volatile than market (e.g., FMCG, Pharma)\n- **Beta \u003c 0:** Moves inverse to market (rare â€” gold ETFs sometimes)\n\n**Portfolio Beta Calculation:**\nWeighted average of individual stock betas\n\n**Diversification Principles:**\n- Across **sectors** (IT, Finance, FMCG, Auto)\n- Across **market caps** (Large + Mid + Small)\n- Across **asset classes** (Equity + Debt + Gold)\n- Across **geographies** (Domestic + International funds)\n\n**Correlation:** Truly diversified portfolios hold assets with low or negative correlation. Two IT stocks don\u0027t diversify â€” they move together.\n\n**Rule of thumb:** 15â€“20 well-chosen stocks across 5â€“6 sectors gives near-maximum diversification benefit."
+                         }
+                     ],
+        "quiz":  [
+                     {
+                         "id":  "q-r-1",
+                         "question":  "You have â‚¹2,00,000 in your account. Entry at â‚¹150, stop loss at â‚¹140. How many shares should you buy (using 1% rule)?",
+                         "options":  [
+                                         "200 shares",
+                                         "100 shares",
+                                         "50 shares",
+                                         "20 shares"
+                                     ],
+                         "answer":  0,
+                         "explanation":  "Risk per trade = 1% Ã— â‚¹2,00,000 = â‚¹2,000. Risk per share = â‚¹150 âˆ’ â‚¹140 = â‚¹10. Position Size = â‚¹2,000 Ã· â‚¹10 = 200 shares."
+                     },
+                     {
+                         "id":  "q-r-2",
+                         "question":  "Which stop loss type automatically adjusts for a stock\u0027s volatility?",
+                         "options":  [
+                                         "Fixed percentage stop",
+                                         "ATR-based stop",
+                                         "Mental stop",
+                                         "Round number stop"
+                                     ],
+                         "answer":  1,
+                         "explanation":  "ATR (Average True Range) measures recent volatility. An ATR-based stop widens during high volatility and narrows during low volatility, making it the most adaptive approach."
+                     },
+                     {
+                         "id":  "q-r-3",
+                         "question":  "Your portfolio has 80% in IT stocks and 20% in Finance. Is it well-diversified?",
+                         "options":  [
+                                         "Yes, it has two sectors",
+                                         "No, IT stocks are highly correlated with each other",
+                                         "Yes, if the IT stocks are different companies",
+                                         "It depends on the market cap"
+                                     ],
+                         "answer":  1,
+                         "explanation":  "80% in a single sector creates massive concentration risk. IT stocks tend to move together (high correlation), so this portfolio behaves almost like a single bet on the IT sector."
+                     }
+                 ],
+        "audience":  "both"
+    },
+    {
+        "id":  "fundamental-analysis",
+        "title":  "Fundamental Analysis Deep Dive",
+        "category":  "Fundamental Analysis",
+        "difficulty":  "Intermediate",
+        "icon":  "BookMarked",
+        "color":  "blue",
+        "description":  "Read balance sheets, income statements, and cash flows like a professional analyst.",
+        "duration":  "55 min",
+        "chapters":  [
+                         {
+                             "id":  "fa-1",
+                             "title":  "Reading the Income Statement",
+                             "content":  "The Income Statement (Profit \u0026 Loss) tells you how much money a company earned and spent over a period.\n\n**Key Line Items:**\n- **Revenue (Top Line):** Total sales before any deductions\n- **Gross Profit:** Revenue minus Cost of Goods Sold (COGS)\n- **EBITDA:** Earnings Before Interest, Tax, Depreciation \u0026 Amortization â€” measures operating performance\n- **Net Profit (Bottom Line):** What remains after all expenses, interest, and tax\n\n**Margins to Track:**\n- **Gross Margin = Gross Profit Ã· Revenue Ã— 100** â€” how efficiently the company produces\n- **Net Profit Margin = Net Profit Ã· Revenue Ã— 100** â€” overall profitability\n- **EBITDA Margin** â€” operational efficiency before financing decisions\n\n**What to Look For:**\n- Consistent revenue growth (15%+ YoY is strong)\n- Expanding margins over time = pricing power or cost control\n- One-time exceptional items distorting net profit â€” always check for these\n- Compare margins with sector peers, not absolute numbers\n\n**Red Flags:**\n- Revenue growing but margins shrinking â€” could signal pricing pressure\n- Net profit higher than operating profit â€” may be boosted by asset sales\n- Frequent \u0027exceptional\u0027 write-offs â€” poor management or aggressive accounting"
+                         },
+                         {
+                             "id":  "fa-2",
+                             "title":  "Balance Sheet \u0026 Debt Analysis",
+                             "content":  "The Balance Sheet shows what a company owns (assets), owes (liabilities), and the shareholders\u0027 stake at a point in time.\n\n**The Equation:** Assets = Liabilities + Shareholders\u0027 Equity\n\n**Key Ratios:**\n- **Debt-to-Equity (D/E):** Total Debt Ã· Equity. Below 1 is generally safe; above 2 warrants caution\n- **Current Ratio:** Current Assets Ã· Current Liabilities. Above 1.5 = healthy short-term liquidity\n- **Interest Coverage Ratio:** EBIT Ã· Interest Expense. Below 2 = danger zone\n\n**Goodwill \u0026 Intangibles:**\nAcquisitions create goodwill on the balance sheet. Large goodwill relative to equity can mask a company\u0027s true book value.\n\n**Working Capital = Current Assets âˆ’ Current Liabilities**\nNegative working capital may signal cash flow stress, unless the business model collects cash before paying suppliers (like retail).\n\n**What Strong Balance Sheets Look Like:**\n- Low or zero net debt (cash \u003e debt)\n- High return on equity (ROE \u003e 15%) without excessive leverage\n- Receivables growing slower than revenue (else cash isn\u0027t being collected)\n- Inventory days stable or declining\n\n**Red Flags:**\n- Debt rising faster than revenue\n- Pledged promoter shares â€” promoters using shares as loan collateral\n- Contingent liabilities buried in notes â€” off-balance-sheet risks"
+                         },
+                         {
+                             "id":  "fa-3",
+                             "title":  "Cash Flow Statement â€” The Truth Test",
+                             "content":  "The Cash Flow Statement is the hardest to manipulate and reveals whether a company truly generates cash.\n\n**Three Sections:**\n- **Operating Cash Flow (OCF):** Cash generated from core business. This is the most important section.\n- **Investing Cash Flow:** Cash spent on capex, acquisitions, or received from asset sales\n- **Financing Cash Flow:** Cash from borrowing, repaying debt, dividends, or share buybacks\n\n**The Golden Rule:**\nA healthy company should have: OCF \u003e Net Profit over time. If net profit consistently exceeds OCF, earnings quality is low.\n\n**Free Cash Flow (FCF) = OCF âˆ’ Capital Expenditure**\nFCF is the cash actually available to reward shareholders. Companies with high FCF can pay dividends, buy back shares, or invest in growth without borrowing.\n\n**Key Checks:**\n- Is OCF positive and growing?\n- Is capex reasonable relative to depreciation? (capex \u003c\u003c depreciation = underinvestment)\n- Is FCF consistently positive over 5 years?\n\n**Red Flags:**\n- Negative OCF for 3+ years â€” business is a cash incinerator\n- Large gap between reported profit and OCF â€” earnings manipulation likely\n- Heavy reliance on financing cash flow â€” dependent on external capital to survive"
+                         }
+                     ],
+        "quiz":  [
+                     {
+                         "id":  "q-fa-1",
+                         "question":  "A company has Revenue of â‚¹500 Cr and Net Profit of â‚¹50 Cr. What is its Net Profit Margin?",
+                         "options":  [
+                                         "5%",
+                                         "10%",
+                                         "15%",
+                                         "50%"
+                                     ],
+                         "answer":  1,
+                         "explanation":  "Net Profit Margin = Net Profit Ã· Revenue Ã— 100 = 50 Ã· 500 Ã— 100 = 10%."
+                     },
+                     {
+                         "id":  "q-fa-2",
+                         "question":  "A company has net profit of â‚¹200 Cr but Operating Cash Flow of â‚¹40 Cr. What does this suggest?",
+                         "options":  [
+                                         "Excellent profitability",
+                                         "Possible earnings manipulation or poor receivable collection",
+                                         "The company is growing fast",
+                                         "High capex investment"
+                                     ],
+                         "answer":  1,
+                         "explanation":  "When OCF is far below net profit, it signals that profits may not be converting to real cash â€” a major red flag indicating possible accounting manipulation or poor receivables collection."
+                     },
+                     {
+                         "id":  "q-fa-3",
+                         "question":  "Which ratio best measures a company\u0027s ability to pay short-term obligations?",
+                         "options":  [
+                                         "P/E Ratio",
+                                         "Debt-to-Equity",
+                                         "Current Ratio",
+                                         "EBITDA Margin"
+                                     ],
+                         "answer":  2,
+                         "explanation":  "The Current Ratio (Current Assets Ã· Current Liabilities) measures short-term liquidity. A ratio above 1.5 indicates the company can comfortably meet near-term obligations."
+                     }
+                 ],
+        "audience":  "investor"
+    },
+    {
+        "id":  "options-derivatives",
+        "title":  "Options \u0026 Derivatives Basics",
+        "category":  "Derivatives",
+        "difficulty":  "Advanced",
+        "icon":  "Award",
+        "color":  "purple",
+        "description":  "Understand Calls, Puts, F\u0026O mechanics, and basic hedging strategies for Indian markets.",
+        "duration":  "65 min",
+        "chapters":  [
+                         {
+                             "id":  "od-1",
+                             "title":  "Futures Contracts Explained",
+                             "content":  "A Futures contract is a legally binding agreement to buy or sell an asset at a predetermined price on a future date.\n\n**Key Concepts:**\n- **Lot Size:** In Indian markets, futures are traded in lots (e.g., Nifty lot = 75 units)\n- **Expiry:** NSE futures expire on the last Thursday of each month\n- **Margin:** You don\u0027t pay the full value â€” only an initial margin (typically 10â€“20%)\n- **Mark-to-Market (MTM):** Daily P\u0026L is settled in cash every evening\n\n**Long vs Short Futures:**\n- **Long (Buy) Futures:** Profit if price rises\n- **Short (Sell) Futures:** Profit if price falls\n\n**Basis = Spot Price âˆ’ Futures Price**\nFutures typically trade at a premium to spot (due to cost of carry). Near expiry, basis converges to zero.\n\n**Practical Example:**\nNifty spot = 22,000. You buy 1 lot of Nifty futures at 22,100 (premium = 100).\nIf Nifty rises to 22,500 at expiry: Profit = (22,500 âˆ’ 22,100) Ã— 75 = â‚¹30,000\nIf Nifty falls to 21,800: Loss = (22,100 âˆ’ 21,800) Ã— 75 = â‚¹22,500\n\n**Uses of Futures:**\n- Speculation (leverage)\n- Hedging an existing equity portfolio\n- Arbitrage between cash and futures markets"
+                         },
+                         {
+                             "id":  "od-2",
+                             "title":  "Call and Put Options",
+                             "content":  "Options give the buyer the RIGHT (not obligation) to buy or sell an asset at a specific price before expiry.\n\n**Call Option:**\n- Gives the right to BUY the underlying at the strike price\n- Buy a Call when you expect the price to RISE\n- Max loss for buyer = Premium paid\n\n**Put Option:**\n- Gives the right to SELL the underlying at the strike price\n- Buy a Put when you expect the price to FALL\n- Max loss for buyer = Premium paid\n\n**Moneyness:**\n- **In-the-Money (ITM):** Option has intrinsic value (e.g., Call strike below current price)\n- **At-the-Money (ATM):** Strike â‰ˆ current market price\n- **Out-of-the-Money (OTM):** Option has no intrinsic value â€” only time value\n\n**Option Premium = Intrinsic Value + Time Value**\n\n**Key Greeks (simplified):**\n- **Delta:** How much option price moves per â‚¹1 move in underlying (Call delta: 0 to 1)\n- **Theta:** Time decay â€” options lose value every day as expiry approaches\n- **Vega:** Sensitivity to volatility â€” rising VIX inflates premiums\n\n**Important:** Option buyers have limited risk but time decay works against them. Option sellers collect premium but face unlimited risk â€” only for experienced traders."
+                         },
+                         {
+                             "id":  "od-3",
+                             "title":  "Hedging Your Portfolio with Options",
+                             "content":  "Hedging uses derivatives to reduce the risk of adverse price movements in your existing portfolio.\n\n**Protective Put (Portfolio Insurance):**\nIf you hold Nifty ETF worth â‚¹5,00,000, buy Nifty Put options at or near the current level.\n- If market falls 10%, your ETF loses â‚¹50,000 but your puts gain value, offsetting the loss\n- Cost = Put premium paid (your insurance premium)\n\n**Covered Call (Income Generation):**\nIf you hold shares, sell a Call option against them.\n- You collect premium upfront\n- If stock stays flat or rises slightly, you keep the premium as income\n- If stock surges past the strike, your upside is capped\n\n**Collar Strategy:**\nBuy a Put + Sell a Call simultaneously. The Call premium partly funds the Put cost.\n- Limits both downside risk AND upside potential\n- Used by institutions to protect large positions cheaply\n\n**Beta Hedging:**\nCalculate your portfolio\u0027s beta. Sell Nifty futures equivalent to (Portfolio Value Ã— Beta Ã· Nifty Lot Value) lots.\n- A beta-1 portfolio of â‚¹10L requires selling â‰ˆ 6 Nifty lots to fully hedge (at Nifty 22,000, lot 75)\n\n**Rule of Thumb:** Hedging costs money. Only hedge when risk is genuinely elevated (high VIX, earnings season, global events)."
+                         }
+                     ],
+        "quiz":  [
+                     {
+                         "id":  "q-od-1",
+                         "question":  "You buy a Nifty Call at strike 22,000 for a premium of â‚¹150 (lot size 75). Nifty expires at 22,300. What is your profit?",
+                         "options":  [
+                                         "â‚¹11,250",
+                                         "â‚¹22,500",
+                                         "â‚¹11,250 minus premium = â‚¹0",
+                                         "â‚¹22,500 minus â‚¹11,250 premium = â‚¹11,250"
+                                     ],
+                         "answer":  3,
+                         "explanation":  "Intrinsic value at expiry = 22,300 âˆ’ 22,000 = â‚¹300. Profit per unit = â‚¹300 âˆ’ â‚¹150 premium = â‚¹150. Total = â‚¹150 Ã— 75 = â‚¹11,250."
+                     },
+                     {
+                         "id":  "q-od-2",
+                         "question":  "Which option strategy is best described as \u0027portfolio insurance\u0027?",
+                         "options":  [
+                                         "Selling a covered call",
+                                         "Buying a protective put",
+                                         "Buying a call option",
+                                         "Selling a put option"
+                                     ],
+                         "answer":  1,
+                         "explanation":  "A protective put involves buying put options on your existing holdings. If the market falls, the puts gain value and offset portfolio losses â€” exactly like insurance."
+                     },
+                     {
+                         "id":  "q-od-3",
+                         "question":  "What does Theta represent in options trading?",
+                         "options":  [
+                                         "Sensitivity to interest rates",
+                                         "Rate of profit increase",
+                                         "Daily loss of option value due to time passing",
+                                         "Sensitivity to volatility changes"
+                                     ],
+                         "answer":  2,
+                         "explanation":  "Theta measures time decay â€” the amount an option\u0027s value decreases each day as it approaches expiry. This is why buying OTM options close to expiry is very risky."
+                     }
+                 ],
+        "audience":  "trader"
+    },
+    {
+        "id":  "trading-psychology",
+        "title":  "Trading Psychology \u0026 Discipline",
+        "category":  "Psychology",
+        "difficulty":  "Beginner",
+        "icon":  "BookOpen",
+        "color":  "emerald",
+        "description":  "Master the mental game â€” overcome biases, manage emotions, and build trading discipline.",
+        "duration":  "40 min",
+        "chapters":  [
+                         {
+                             "id":  "tp-1",
+                             "title":  "The 7 Cognitive Biases That Destroy Portfolios",
+                             "content":  "Your brain is wired for survival, not markets. These biases consistently cause traders to lose money.\n\n**1. Overconfidence Bias**\nTraders overestimate their ability to predict markets. Studies show most active traders underperform index funds after costs.\n\n**2. Loss Aversion**\nLosses feel twice as painful as equivalent gains feel good. This causes traders to hold losers too long and sell winners too early â€” the exact opposite of what works.\n\n**3. Confirmation Bias**\nSeeking only information that confirms your existing view. You\u0027re bullish on a stock â†’ you read only bullish news and dismiss red flags.\n\n**4. Recency Bias**\nOverweighting recent events. After a bull run, you assume it will continue forever. After a crash, you fear buying.\n\n**5. Anchoring Bias**\nFixating on an arbitrary reference price (e.g., \u0027I bought at â‚¹500, I won\u0027t sell until it goes back to â‚¹500\u0027). The market doesn\u0027t care what you paid.\n\n**6. Herding**\nFollowing the crowd. Buying because \u0027everyone is buying\u0027 â€” usually means you\u0027re arriving at the party as the smart money exits.\n\n**7. Sunk Cost Fallacy**\nContinuing to hold a losing position because of the money already lost. \u0027I\u0027ve already lost â‚¹50,000, I\u0027ll wait for recovery.\u0027 The loss is already gone â€” make rational decisions going forward.\n\n**The Fix:** Write a trade thesis before entering. If the thesis is invalidated, exit regardless of P\u0026L."
+                         },
+                         {
+                             "id":  "tp-2",
+                             "title":  "Building a Trading Routine \u0026 Journal",
+                             "content":  "Elite traders are defined by their process, not their predictions. A structured routine removes emotion from decisions.\n\n**Pre-Market Routine (30 min):**\n- Check global markets (US futures, SGX Nifty, crude oil, DXY)\n- Note key economic events for the day\n- Review your watchlist â€” which setups are ready?\n- Set your daily max loss limit (if hit, stop trading for the day)\n\n**During Market Hours:**\n- Only take trades that match pre-defined setups\n- Do NOT watch P\u0026L tick by tick â€” it triggers emotional decisions\n- Set alerts instead of watching the screen constantly\n\n**Post-Market Review (15 min):**\n- Record every trade in your journal\n- Note: Entry reason, exit reason, what you did right, what you did wrong\n- Review screen recordings of your trades if possible\n\n**What to Track in Your Journal:**\n- Date, symbol, direction (long/short), entry/exit price\n- Setup type (e.g., breakout, pullback, reversal)\n- Planned stop loss, actual stop loss (did you move it?)\n- Emotional state before the trade\n- Outcome and lessons learned\n\n**The Compound Effect of Journaling:**\nAfter 100 trades, patterns emerge. You\u0027ll discover which setups work for you, which times of day you perform best, and what emotional states lead to bad decisions."
+                         },
+                         {
+                             "id":  "tp-3",
+                             "title":  "Handling Losses \u0026 Drawdown Periods",
+                             "content":  "Every trader â€” even the best in the world â€” goes through losing streaks. How you handle them determines survival.\n\n**Understanding Drawdown:**\nDrawdown = percentage decline from your account peak to its lowest point before a new high.\n- A 10% drawdown requires an 11.1% gain to recover\n- A 25% drawdown requires a 33% gain to recover\n- A 50% drawdown requires a 100% gain to recover\n\n**This math is why capital preservation is sacred.**\n\n**During a Drawdown â€” The Protocol:**\n- **Step 1:** Reduce position size by 50%. Smaller bets = smaller losses = mental clarity preserved\n- **Step 2:** Review your last 10 trades. Is there a pattern? Are you overtrading? Forcing setups?\n- **Step 3:** Take 1â€“2 trading days off. Physical reset matters.\n- **Step 4:** Paper trade for a few days to rebuild confidence without risking capital\n- **Step 5:** Return with full rules, reduced size\n\n**Revenge Trading â€” The Biggest Account Killer:**\nAfter a big loss, the urge to \u0027win it back immediately\u0027 leads to oversized, impulsive trades that deepen the hole.\n\n**Practical Rules:**\n- Set a daily max loss of 2% of capital. If hit, close the platform and walk away.\n- Never add to a losing position hoping for a reversal\n- Separate your self-worth from your P\u0026L â€” one bad day doesn\u0027t define you as a trader"
+                         }
+                     ],
+        "quiz":  [
+                     {
+                         "id":  "q-tp-1",
+                         "question":  "You bought a stock at â‚¹200. It\u0027s now at â‚¹120 and the business fundamentals have deteriorated. You refuse to sell because \u0027it\u0027ll come back to â‚¹200\u0027. Which bias is this?",
+                         "options":  [
+                                         "Overconfidence Bias",
+                                         "Herding",
+                                         "Anchoring + Sunk Cost Fallacy",
+                                         "Recency Bias"
+                                     ],
+                         "answer":  2,
+                         "explanation":  "Anchoring to the â‚¹200 purchase price and staying in a losing trade because of money already lost are classic examples of Anchoring Bias and the Sunk Cost Fallacy working together."
+                     },
+                     {
+                         "id":  "q-tp-2",
+                         "question":  "After 5 losing trades in a row, you double your position size to recover losses quickly. This is called:",
+                         "options":  [
+                                         "Scaling in",
+                                         "Averaging down intelligently",
+                                         "Revenge trading",
+                                         "Pyramiding"
+                                     ],
+                         "answer":  2,
+                         "explanation":  "Revenge trading is the dangerous impulse to make back losses immediately by taking bigger, emotion-driven risks. It consistently turns small losses into account-destroying ones."
+                     },
+                     {
+                         "id":  "q-tp-3",
+                         "question":  "Your account drops 50% from â‚¹2,00,000 to â‚¹1,00,000. How much return do you need just to break even?",
+                         "options":  [
+                                         "50%",
+                                         "75%",
+                                         "100%",
+                                         "25%"
+                                     ],
+                         "answer":  2,
+                         "explanation":  "To recover from a 50% loss: â‚¹1,00,000 needs to become â‚¹2,00,000 â€” that\u0027s a 100% return required just to break even. This illustrates why avoiding large drawdowns is critical."
+                     }
+                 ],
+        "audience":  "both"
+    },
+    {
+        "id":  "portfolio-management",
+        "title":  "Portfolio Management \u0026 Asset Allocation",
+        "category":  "Portfolio",
+        "difficulty":  "Intermediate",
+        "icon":  "BookMarked",
+        "color":  "blue",
+        "description":  "Build and manage a multi-asset portfolio using modern portfolio theory and rebalancing strategies.",
+        "duration":  "50 min",
+        "chapters":  [
+                         {
+                             "id":  "pm-1",
+                             "title":  "Asset Allocation â€” The Most Important Decision",
+                             "content":  "Studies show that over 90% of portfolio returns are explained by asset allocation, not individual stock picks.\n\n**Core Asset Classes:**\n- **Equity:** Higher long-term returns, high short-term volatility\n- **Debt (Bonds/FDs):** Lower returns, capital preservation, income generation\n- **Gold:** Inflation hedge, performs well during equity bear markets\n- **Real Estate (REITs):** Income + capital appreciation, low stock market correlation\n- **Cash:** Zero real return but provides optionality during crashes\n\n**Age-Based Allocation Rule (Simplified):**\n- Equity % = 100 âˆ’ Your Age\n- A 30-year-old: 70% equity, 30% debt/gold\n- A 55-year-old: 45% equity, 55% debt/gold\n\n**Goal-Based Allocation:**\n- Emergency Fund (0â€“2 years): 100% liquid/debt\n- Short-term goal (2â€“5 years): 40% equity, 60% debt\n- Long-term goal (7+ years): 80% equity, 20% debt\n\n**Correlation is Key:**\nAssets that don\u0027t move together reduce portfolio volatility without reducing returns. Equity and gold have historically low correlation â€” combining them smooths the overall portfolio curve.\n\n**Strategic vs Tactical Allocation:**\n- Strategic: Long-term target (e.g., 70/30 equity/debt)\n- Tactical: Short-term deviation based on market conditions (e.g., reduce equity to 60 when valuations are extreme)"
+                         },
+                         {
+                             "id":  "pm-2",
+                             "title":  "Portfolio Rebalancing â€” Selling High, Buying Low Automatically",
+                             "content":  "Rebalancing is the disciplined act of restoring your portfolio to its target allocation when markets drift it away.\n\n**Why Rebalancing Works:**\nAfter a bull market, equity might grow from 70% to 85% of your portfolio. Rebalancing forces you to sell some equity (at high prices) and buy debt/gold (at relatively lower prices) â€” mechanically implementing \u0027buy low, sell high\u0027.\n\n**Rebalancing Methods:**\n\n**1. Calendar Rebalancing:**\nRebalance on a fixed schedule (quarterly or annually). Simple and removes emotion. Works for most investors.\n\n**2. Threshold Rebalancing:**\nRebalance only when an asset class drifts more than Â±5% from its target. More efficient, fewer unnecessary trades.\n\n**3. Cash Flow Rebalancing:**\nUse new money (salary, dividends) to buy underweighted assets instead of selling overweighted ones. Avoids tax events.\n\n**Tax Considerations in India:**\n- LTCG on equity: 10% above â‚¹1 lakh (held \u003e1 year)\n- STCG on equity: 15% (held \u003c1 year)\n- Rebalancing within tax-advantaged instruments (ELSS, NPS) avoids immediate tax\n\n**The Rebalancing Bonus:**\nHistorically, disciplined rebalancing adds 0.5â€“1.5% additional return annually through the forced contrarian behavior. This is known as the \u0027rebalancing bonus.\u0027"
+                         },
+                         {
+                             "id":  "pm-3",
+                             "title":  "Evaluating Portfolio Performance",
+                             "content":  "Raw returns mean nothing without context. You must measure performance against the right benchmarks and adjust for risk.\n\n**Benchmark Selection:**\n- Large-cap equity portfolio â†’ compare to Nifty 50 TRI (Total Return Index)\n- Multi-cap â†’ compare to Nifty 500 TRI\n- Debt â†’ compare to CRISIL Short-Term Bond Index\n\n**Risk-Adjusted Return Metrics:**\n\n**Sharpe Ratio = (Portfolio Return âˆ’ Risk-Free Rate) Ã· Standard Deviation**\n- Measures return per unit of total risk\n- Above 1 = good, above 2 = excellent\n- Risk-free rate in India â‰ˆ 6.5â€“7% (10-year G-Sec yield)\n\n**Sortino Ratio:** Like Sharpe, but only penalizes downside volatility â€” preferred by many practitioners.\n\n**Alpha:** Return generated above the benchmark. Positive alpha = outperformance after accounting for market moves.\n\n**Maximum Drawdown:** Largest peak-to-trough decline. A portfolio that returned 20% but had a 40% drawdown is far riskier than one that returned 16% with a 15% drawdown.\n\n**Common Mistakes in Performance Evaluation:**\n- Comparing a 3-year return to a 10-year benchmark average\n- Ignoring dividends and reinvestment (always use TRI, not Price Index)\n- Cherry-picking the measurement start date to show favorable performance\n- Not accounting for taxes and transaction costs in reported returns"
+                         }
+                     ],
+        "quiz":  [
+                     {
+                         "id":  "q-pm-1",
+                         "question":  "A 35-year-old investor uses the \u0027100 minus age\u0027 rule. What should their approximate equity allocation be?",
+                         "options":  [
+                                         "35%",
+                                         "65%",
+                                         "80%",
+                                         "50%"
+                                     ],
+                         "answer":  1,
+                         "explanation":  "100 âˆ’ 35 = 65% in equity. The remaining 35% goes into debt, gold, or other lower-risk assets. This rule adjusts the portfolio to become more conservative as you age."
+                     },
+                     {
+                         "id":  "q-pm-2",
+                         "question":  "Your target is 70% equity but after a bull run it\u0027s grown to 82%. What should you do?",
+                         "options":  [
+                                         "Let it run â€” momentum is strong",
+                                         "Sell some equity and buy underweighted assets to return to 70/30",
+                                         "Buy more equity to maintain momentum",
+                                         "Switch entirely to debt"
+                                     ],
+                         "answer":  1,
+                         "explanation":  "Rebalancing means selling the overweighted asset (equity at 82%) and buying underweighted ones to restore the 70% target. This mechanically forces you to sell high and buy low."
+                     },
+                     {
+                         "id":  "q-pm-3",
+                         "question":  "Portfolio A returned 22% with a Sharpe Ratio of 0.6. Portfolio B returned 16% with a Sharpe Ratio of 1.8. Which is better on a risk-adjusted basis?",
+                         "options":  [
+                                         "Portfolio A â€” higher absolute return",
+                                         "Portfolio B â€” much better return per unit of risk",
+                                         "They are equal",
+                                         "Cannot determine without more data"
+                                     ],
+                         "answer":  1,
+                         "explanation":  "The Sharpe Ratio measures return per unit of risk. Portfolio B\u0027s Sharpe of 1.8 far exceeds A\u0027s 0.6, meaning B generates far more return for each unit of risk taken â€” making it the superior portfolio."
+                     }
+                 ],
+        "audience":  "investor"
+    }
 ]

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Send } from 'lucide-react';
+import { CheckCircle, AlertTriangle, Send } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { submitSupportMessage } from '../../../api/supportApi';
 
 const ContactForm = () => {
   const [formData, setFormData] = useState({
@@ -12,6 +13,8 @@ const ContactForm = () => {
 
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [toast, setToast] = useState(null);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -24,10 +27,19 @@ const ContactForm = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
+    setError('');
 
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      await submitSupportMessage({
+        fullName: formData.fullName,
+        email: formData.email,
+        topic: formData.topic,
+        message: formData.message,
+        page: 'help-support',
+      });
+
       setSubmitted(true);
+      setToast({ type: 'success', message: 'Message sent successfully.' });
       setFormData({
         fullName: '',
         email: '',
@@ -38,7 +50,13 @@ const ContactForm = () => {
       setTimeout(() => {
         setSubmitted(false);
       }, 3000);
-    }, 500);
+    } catch (submitError) {
+      const nextError = submitError?.response?.data?.error || submitError?.response?.data?.message || 'Failed to send message';
+      setError(nextError);
+      setToast({ type: 'error', message: nextError });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -50,6 +68,22 @@ const ContactForm = () => {
     >
       <h3 className="form-title">Send us a Message</h3>
 
+      {toast && (
+        <motion.div
+          initial={{ opacity: 0, y: -8, scale: 0.98 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0 }}
+          className={`mb-4 rounded-2xl border px-4 py-3 text-sm font-semibold flex items-center gap-3 ${
+            toast.type === 'success'
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+              : 'border-rose-200 bg-rose-50 text-rose-700'
+          }`}
+        >
+          {toast.type === 'success' ? <CheckCircle size={18} /> : <AlertTriangle size={18} />}
+          <span>{toast.message}</span>
+        </motion.div>
+      )}
+
       {submitted && (
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
@@ -58,6 +92,12 @@ const ContactForm = () => {
         >
           Message sent! We'll get back to you soon.
         </motion.div>
+      )}
+
+      {error && (
+        <div className="form-error-message" role="alert">
+          {error}
+        </div>
       )}
 
       <form onSubmit={handleSubmit} className="contact-form-container">

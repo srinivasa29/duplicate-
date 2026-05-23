@@ -33,7 +33,7 @@ const {
     getStockEarningsCalendar,
     getStockNewsSentiment,
 } = require('../services/stockInsightsService');
-const { evaluateAlertProximity } = require('../services/alertProximityEngine');
+const { recordTrade } = require('../services/tradeLogService');
 
 const router = express.Router();
 
@@ -165,39 +165,27 @@ router.put('/user/profile', ...ensureAuth(async (req, res) => {
         return sendError(res, 400, 'username is required');
     }
 
-    let targetUser = req.user;
-    if (username && username !== req.user.username) {
-        const taken = await User.findOne({ username, _id: { $ne: req.user._id } });
-        if (taken) {
-            targetUser = taken;
-            if (email && email === req.user.email) {
-                req.user.email = `released_${Date.now()}_${req.user.email}`;
-                await req.user.save();
-            }
+    if (email) {
+        const existing = await User.findOne({ email, _id: { $ne: req.user._id } });
+        if (existing) {
+            return sendError(res, 400, 'Email already in use');
         }
     }
 
-    if (username) targetUser.username = username;
-    if (email && email !== targetUser.email) {
-        const emailTaken = await User.findOne({ email, _id: { $ne: targetUser._id } });
-        if (emailTaken) {
-            emailTaken.email = `released_${Date.now()}_${emailTaken.email}`;
-            await emailTaken.save();
-        }
-        targetUser.email = email;
+    req.user.username = username;
+    if (email) {
+        req.user.email = email;
     }
-    await targetUser.save();
+    await req.user.save();
 
-    const jwt = require('jsonwebtoken');
     return res.json({
         success: true,
         data: {
-            id: targetUser._id,
-            username: targetUser.username,
-            email: targetUser.email || null,
-            preferredMode: targetUser.preferredMode,
-            settings: targetUser.settings || {},
-            token: jwt.sign({ id: targetUser._id }, process.env.JWT_SECRET, { expiresIn: '30d' })
+            id: req.user._id,
+            username: req.user.username,
+            email: req.user.email || null,
+            preferredMode: req.user.preferredMode,
+            settings: req.user.settings || {},
         },
     });
 }));
@@ -285,6 +273,8 @@ router.post('/user/portfolio/transactions', ...ensureAuth(async (req, res) => {
     const total = quantity * price;
     const idx = portfolio.holdings.findIndex((row) => normalizeSymbol(row.symbol) === symbol);
 
+    let entryPrice = price;
+
     if (side === 'BUY') {
         if (Number(portfolio.cashBalance || 0) < total) {
             return sendError(res, 400, 'Insufficient funds');
@@ -312,6 +302,7 @@ router.post('/user/portfolio/transactions', ...ensureAuth(async (req, res) => {
             return sendError(res, 400, 'Holding not found');
         }
         const current = portfolio.holdings[idx];
+        entryPrice = Number(current.avgBuyPrice || price);
         const existingQty = Number(current.quantity || 0);
         if (existingQty < quantity) {
             return sendError(res, 400, 'Not enough quantity to sell');
@@ -369,6 +360,17 @@ router.get('/user/portfolio/analytics', ...ensureAuth(async (req, res) => {
                 .slice(0, 5),
         },
     });
+            recordTrade({
+                userId: req.user._id,
+                symbol,
+                side,
+                quantity,
+                price,
+                assetType,
+                entryPrice,
+                executedAt: nowIso(),
+                source: 'contract/portfolio',
+            }).catch(() => null);
 }));
 
 router.get('/user/watchlists', ...ensureAuth(async (req, res) => {
@@ -460,29 +462,6 @@ router.post('/user/notifications/mark-all-read', ...ensureAuth(async (req, res) 
         success: true,
         data: { modified: Number(result.modifiedCount || 0) },
     });
-}));
-
-router.get('/alerts/proximity', ...ensureAuth(async (req, res) => {
-    try {
-        let localAlerts = [];
-        if (req.query?.localAlerts) {
-            try { localAlerts = JSON.parse(req.query.localAlerts); } catch(e) {}
-        }
-        const data = await evaluateAlertProximity(localAlerts, req.user._id);
-        return res.json({ success: true, data });
-    } catch (error) {
-        return sendError(res, 500, error.message || 'Failed to evaluate alert proximity');
-    }
-}));
-
-router.post('/alerts/proximity', ...ensureAuth(async (req, res) => {
-    try {
-        const localAlerts = Array.isArray(req.body?.localAlerts) ? req.body.localAlerts : [];
-        const data = await evaluateAlertProximity(localAlerts, req.user._id);
-        return res.json({ success: true, data });
-    } catch (error) {
-        return sendError(res, 500, error.message || 'Failed to evaluate alert proximity');
-    }
 }));
 
 router.get('/alerts', ...ensureAuth(async (req, res) => {

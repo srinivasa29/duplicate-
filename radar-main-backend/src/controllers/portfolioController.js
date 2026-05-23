@@ -1,6 +1,8 @@
 const mongoose = require('mongoose');
 const Portfolio = require('../models/Portfolio');
 const logger = require('../utils/logger');
+const { recordTrade } = require('../services/tradeLogService');
+const UserSettings = require('../models/UserSettings');
 
 const getPortfolio = async (req, res) => {
     const userId = req.user._id;
@@ -45,8 +47,19 @@ const executeTrade = async (req, res) => {
         return res.status(400).json({ error: "Symbol is required" });
     }
 
+    // fetch user settings (use defaults when missing)
+    let userSettings = null;
+    try {
+        userSettings = await UserSettings.findOne({ user: userId }).lean();
+    } catch (e) {
+        // proceed with defaults if settings read fails
+        userSettings = null;
+    }
+
     const session = await mongoose.startSession();
     session.startTransaction();
+
+    let entryPrice = px;
 
     try {
         const portfolio = await Portfolio.findOneAndUpdate(
@@ -95,6 +108,7 @@ const executeTrade = async (req, res) => {
             }
 
             const existingQty = Number(portfolio.holdings[holdingIndex].quantity) || 0;
+            entryPrice = Number(portfolio.holdings[holdingIndex].avgBuyPrice || px);
             if (existingQty < qty) {
                 await session.abortTransaction();
                 return res.status(400).json({ error: "Not enough shares to sell" });
@@ -110,6 +124,33 @@ const executeTrade = async (req, res) => {
 
         portfolio.totalTrades += 1;
         await portfolio.save({ session });
+
+        // compute bracket defaults from settings if available
+        const stopLossPct = (userSettings && userSettings.risk && typeof userSettings.risk.defaultStopLossPct === 'number')
+            ? userSettings.risk.defaultStopLossPct : 2;
+        const takeProfitPct = (userSettings && userSettings.risk && typeof userSettings.risk.defaultTakeProfitPct === 'number')
+            ? userSettings.risk.defaultTakeProfitPct : 5;
+
+        const stopLossPrice = +(px * (1 - stopLossPct / 100));
+        const takeProfitPrice = +(px * (1 + takeProfitPct / 100));
+
+        recordTrade({
+            userId,
+            symbol: normalizedSymbol,
+            side: normalizedAction,
+            quantity: qty,
+            price: px,
+            assetType: assetType || 'STOCK',
+            entryPrice,
+            executedAt: new Date(),
+            source: 'portfolio/execute',
+            meta: {
+                stopLossPrice,
+                takeProfitPrice,
+                stopLossPct,
+                takeProfitPct
+            }
+        }).catch(() => null);
 
         await session.commitTransaction();
         res.json(portfolio);

@@ -11,8 +11,8 @@ const BACKEND_SYMBOL_MAP = {
   TCS: "TCS.NS",
   "NIFTY 50": "^NSEI",
   BANKNIFTY: "^NSEBANK",
-  FINNIFTY: "^CNXFIN",
-  MIDCPNIFTY: "^NSEI", // closest available; swap if backend supports NIFTY MIDCAP
+  SENSEX: "^BSESN",
+  "NIFTY IT": "^CNXIT",
 };
 
 const BACKEND_INTERVAL_MAP = {
@@ -27,8 +27,8 @@ const BACKEND_INTERVAL_MAP = {
 const FALLBACK_BASE_PRICE = {
   "NIFTY 50": 22500,
   BANKNIFTY: 48500,
-  FINNIFTY: 23800,
-  MIDCPNIFTY: 12400,
+  SENSEX: 74000,
+  "NIFTY IT": 38000,
   RELIANCE: 2950,
   HDFCBANK: 1660,
   TCS: 4030,
@@ -83,6 +83,57 @@ const calculateMA = (data, period) => {
   });
 };
 
+const calculateBollinger = (data, period = 20, stdMult = 2) => {
+  const mas = calculateMA(data, period);
+  return data.map((_, index) => {
+    if (index < period - 1) return { upper: null, lower: null, mid: null };
+    const mid = mas[index];
+    const slice = data.slice(index - period + 1, index + 1).map(p => p.price || p.close);
+    const variance = slice.reduce((acc, v) => acc + Math.pow(v - mid, 2), 0) / period;
+    const std = Math.sqrt(variance);
+    return { upper: mid + stdMult * std, lower: mid - stdMult * std, mid };
+  });
+};
+
+const calculateVWAP = (data) => {
+  if (!data || data.length === 0) return [];
+  let cumVolPrice = 0, cumVol = 0;
+  return data.map((p) => {
+    const vol = p.volume || 1;
+    const typicalPrice = ((p.high || p.price) + (p.low || p.price) + (p.close || p.price)) / 3;
+    cumVolPrice += typicalPrice * vol;
+    cumVol += vol;
+    return cumVol > 0 ? cumVolPrice / cumVol : null;
+  });
+};
+
+const calculateRSI = (data, period = 14) => {
+  if (!data || data.length < period + 1) return [];
+  const result = new Array(data.length).fill(null);
+  let gains = 0, losses = 0;
+  for (let i = 1; i <= period; i++) {
+    const diff = (data[i].price || data[i].close) - (data[i - 1].price || data[i - 1].close);
+    if (diff > 0) gains += diff; else losses -= diff;
+  }
+  let avgGain = gains / period, avgLoss = losses / period;
+  result[period] = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss);
+  for (let i = period + 1; i < data.length; i++) {
+    const diff = (data[i].price || data[i].close) - (data[i - 1].price || data[i - 1].close);
+    avgGain = (avgGain * (period - 1) + Math.max(diff, 0)) / period;
+    avgLoss = (avgLoss * (period - 1) + Math.max(-diff, 0)) / period;
+    result[i] = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss);
+  }
+  return result;
+};
+
+const INDICATOR_OPTIONS = [
+  { id: 'ma7',   label: 'MA 7',         color: '#FFA500' },
+  { id: 'ma25',  label: 'MA 25',        color: '#FF1493' },
+  { id: 'vwap',  label: 'VWAP',         color: '#60a5fa' },
+  { id: 'bb',    label: 'Bollinger',    color: '#a78bfa' },
+  { id: 'rsi',   label: 'RSI (14)',     color: '#34d399' },
+];
+
 const symbolSeed = (symbol) => {
   return String(symbol || "")
     .split("")
@@ -119,14 +170,14 @@ const generateFallbackHistory = (symbol, timeframe) => {
   });
 };
 
-const MultiChartGrid = ({ className, onOpenChart, timeframe = "15m", showIndicators = false, layout = "4-grid" }) => {
+const MultiChartGrid = ({ className, onOpenChart, timeframe = "15m", activeIndicators = new Set(), showGridLines = true, layout = "4-grid" }) => {
 
   const [histories, setHistories] = useState({});
   const [isLoading, setIsLoading] = useState(true);
   const { activeSymbol } = useAsset();
 
   // This pack is indices-only — always show the fixed 4 regardless of activeSymbol
-  const INDEX_CHARTS = ["NIFTY 50", "BANKNIFTY", "FINNIFTY", "MIDCPNIFTY"];
+  const INDEX_CHARTS = ["NIFTY 50", "BANKNIFTY", "SENSEX", "NIFTY IT"];
 
   const getChartsToShow = () => {
     switch (layout) {
@@ -186,22 +237,22 @@ const MultiChartGrid = ({ className, onOpenChart, timeframe = "15m", showIndicat
     <div className={`${className} h-full min-h-0 w-full`}>
       <div className="flex flex-col h-full min-h-0">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-2.5 gap-2">
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 bg-[#42C0A5] rounded-full animate-pulse"></div>
-            <div>
-              <h3 className="text-lg font-bold text-white font-['Plus_Jakarta_Sans'] uppercase tracking-wider">
-                MULTI-CHART WORKSPACE
-              </h3>
-            </div>
+          <div className="flex items-center gap-2 pl-2">
+            <div className="w-2 h-2 bg-[#42C0A5] rounded-full animate-pulse flex-shrink-0 self-center"></div>
+            <span className="text-lg font-bold text-white font-['Plus_Jakarta_Sans'] uppercase tracking-wider leading-none">
+              MULTI-CHART WORKSPACE
+            </span>
           </div>
           <div className="flex gap-2 text-white/50 items-center bg-white/5 px-2 py-1 rounded-full border border-white/10">
             <span className="text-xs font-bold tracking-wider">LAYOUT: {layout.toUpperCase()}</span>
             <div className="w-1 h-1 bg-white/20 rounded-full"></div>
             <span className="text-xs text-[#42C0A5] font-mono font-bold tracking-wider">{timeframe.toUpperCase()}</span>
-            {showIndicators && (
+            {activeIndicators.size > 0 && (
               <>
                 <div className="w-1 h-1 bg-white/20 rounded-full"></div>
-                <span className="text-xs font-bold tracking-wider">• MA(7,25)</span>
+                <span className="text-xs font-mono font-bold tracking-wider text-white/60">
+                  {[...activeIndicators].map(id => ({ma7:'MA7',ma25:'MA25',vwap:'VWAP',bb:'BB',rsi:'RSI'})[id]).filter(Boolean).join(' · ')}
+                </span>
               </>
             )}
           </div>
@@ -210,8 +261,12 @@ const MultiChartGrid = ({ className, onOpenChart, timeframe = "15m", showIndicat
           {chartsToShow.map((title, i) => {
             const chartData = histories[title] || [];
             const isFallback = chartData[0]?.__source === "fallback";
-            const ma7 = showIndicators ? calculateMA(chartData, 7) : [];
-            const ma25 = showIndicators ? calculateMA(chartData, 25) : [];
+            const ma7   = activeIndicators.has('ma7')  ? calculateMA(chartData, 7)   : [];
+            const ma25  = activeIndicators.has('ma25') ? calculateMA(chartData, 25)  : [];
+            const vwap  = activeIndicators.has('vwap') ? calculateVWAP(chartData)    : [];
+            const bb    = activeIndicators.has('bb')   ? calculateBollinger(chartData) : [];
+            const rsi   = activeIndicators.has('rsi')  ? calculateRSI(chartData)     : [];
+            const latestRsi = rsi.length > 0 ? rsi[rsi.length - 1] : null;
             const latest = chartData[chartData.length - 1] || {};
             const prev = chartData[chartData.length - 2] || latest;
             const pctChange = latest.close ? (((latest.close - prev.close) / prev.close) * 100).toFixed(2) : '0.00';
@@ -236,6 +291,13 @@ const MultiChartGrid = ({ className, onOpenChart, timeframe = "15m", showIndicat
                       <span className={`${isPos ? 'text-[#42C0A5]' : 'text-red-400'} text-xs font-mono font-bold`}>
                         {(latest.close || 0).toLocaleString()} ({isPos ? '+' : ''}{pctChange}%)
                       </span>
+                      {latestRsi !== null && (
+                        <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border ${
+                          latestRsi < 30 ? 'text-emerald-300 bg-emerald-500/10 border-emerald-500/30' :
+                          latestRsi > 70 ? 'text-red-300 bg-red-500/10 border-red-500/30' :
+                          'text-slate-300 bg-white/5 border-white/10'
+                        }`}>RSI {latestRsi.toFixed(0)}</span>
+                      )}
                     </div>
                     <div className="flex gap-2 text-[10px] text-white/40 font-mono mt-0.5 font-medium tracking-wider scale-90 origin-left">
                       <span>
@@ -299,33 +361,38 @@ const MultiChartGrid = ({ className, onOpenChart, timeframe = "15m", showIndicat
                           strokeWidth={1.5}
                           isAnimationActive={false}
                         />
-                        {showIndicators && (
+                        {activeIndicators.has('ma7') && (
+                          <Line type="monotone"
+                            data={chartData.map((d, idx) => ({ ...d, ma7: ma7[idx] }))}
+                            dataKey="ma7" stroke="#FFA500" strokeWidth={1} dot={false} isAnimationActive={false} />
+                        )}
+                        {activeIndicators.has('ma25') && (
+                          <Line type="monotone"
+                            data={chartData.map((d, idx) => ({ ...d, ma25: ma25[idx] }))}
+                            dataKey="ma25" stroke="#FF1493" strokeWidth={1} dot={false} isAnimationActive={false} />
+                        )}
+                        {activeIndicators.has('vwap') && (
+                          <Line type="monotone"
+                            data={chartData.map((d, idx) => ({ ...d, vwap: vwap[idx] }))}
+                            dataKey="vwap" stroke="#60a5fa" strokeWidth={1.2} dot={false} strokeDasharray="4 2" isAnimationActive={false} />
+                        )}
+                        {activeIndicators.has('bb') && (
                           <>
-                            <Line
-                              type="monotone"
-                              data={chartData.map((d, idx) => ({ ...d, ma7: ma7[idx] }))}
-                              dataKey="ma7"
-                              stroke="#FFA500"
-                              strokeWidth={1}
-                              dot={false}
-                              isAnimationActive={false}
-                            />
-                            <Line
-                              type="monotone"
-                              data={chartData.map((d, idx) => ({ ...d, ma25: ma25[idx] }))}
-                              dataKey="ma25"
-                              stroke="#FF1493"
-                              strokeWidth={1}
-                              dot={false}
-                              isAnimationActive={false}
-                            />
+                            <Line type="monotone"
+                              data={chartData.map((d, idx) => ({ ...d, bbUpper: bb[idx]?.upper }))}
+                              dataKey="bbUpper" stroke="#a78bfa" strokeWidth={0.8} dot={false} strokeDasharray="2 3" isAnimationActive={false} />
+                            <Line type="monotone"
+                              data={chartData.map((d, idx) => ({ ...d, bbLower: bb[idx]?.lower }))}
+                              dataKey="bbLower" stroke="#a78bfa" strokeWidth={0.8} dot={false} strokeDasharray="2 3" isAnimationActive={false} />
                           </>
                         )}
-                        <CartesianGrid
-                          stroke="#293839"
-                          strokeDasharray="3 3"
-                          vertical={false}
-                        />
+                        {showGridLines && (
+                          <CartesianGrid
+                            stroke="#293839"
+                            strokeDasharray="3 3"
+                            vertical={false}
+                          />
+                        )}
                       </AreaChart>
                     </ResponsiveContainer>
                   )}

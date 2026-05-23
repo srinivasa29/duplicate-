@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -178,14 +178,18 @@ const AdvancedWatchlist = ({ onSymbolSelect }) => {
   const loadWatchlist = useCallback(async () => {
     setIsLoading(true);
     try {
-      // 1. Try backend watchlist (authenticated)
+      // 1. Try backend watchlist (authenticated) — Trader mode
       const token = localStorage.getItem('token');
       let symbols = [];
 
       if (token) {
         try {
-          const listsRes = await api.get('/watchlists');
-          const lists = Array.isArray(listsRes.data) ? listsRes.data : [];
+          const listsRes = await api.get('/watchlist', { params: { mode: 'trader' } });
+          let lists = Array.isArray(listsRes.data) ? listsRes.data : [];
+          if (lists.length === 0) {
+            const createdRes = await api.post('/watchlist', { name: 'Trader Watchlist', mode: 'trader' });
+            lists = createdRes.data ? [createdRes.data] : [];
+          }
           if (lists.length > 0) {
             setWatchlistId(lists[0]._id);
             symbols = (lists[0].items || []).map(i => String(i.symbol || '').replace(/\.(NS|BO)$/i, ''));
@@ -406,7 +410,7 @@ const AdvancedWatchlist = ({ onSymbolSelect }) => {
     setRows(prev => prev.filter(r => r.symbol !== symbol));
 
     if (watchlistId) {
-      api.delete(`/watchlists/${watchlistId}/remove`, { data: { symbol } })
+      api.delete(`/watchlist/${watchlistId}/remove/${encodeURIComponent(symbol)}`)
         .catch(err => console.warn('Failed to remove symbol from backend:', err.message));
     }
 
@@ -419,7 +423,7 @@ const AdvancedWatchlist = ({ onSymbolSelect }) => {
           return next;
         });
         if (watchlistId) {
-          api.post(`/watchlists/${watchlistId}/add`, { symbol })
+          api.post(`/watchlist/${watchlistId}/add`, { symbol })
             .catch(err => console.warn('Failed to re-add symbol on undo:', err.message));
         }
         setUiNotice(null);
@@ -437,7 +441,7 @@ const AdvancedWatchlist = ({ onSymbolSelect }) => {
 
   if (!isLoading && rows.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-screen w-full gap-6 text-center px-6" style={{ minHeight: 'calc(100vh - 90px)' }}>
+      <div className="flex flex-col items-center justify-center w-full gap-6 text-center px-6" style={{ minHeight: 'calc(100vh - 90px)' }}>
         <div className="h-20 w-20 rounded-2xl bg-slate-900/60 border border-white/5 flex items-center justify-center">
           <Plus size={32} className="text-slate-600" />
         </div>
@@ -486,7 +490,7 @@ const AdvancedWatchlist = ({ onSymbolSelect }) => {
                         setAddTickerResults([]);
                         // Persist to backend watchlist
                         if (watchlistId) {
-                          try { await api.post(`/watchlists/${watchlistId}/add`, { symbol: sym }); }
+                          try { await api.post(`/watchlist/${watchlistId}/add`, { symbol: sym }); }
                           catch (e) { console.warn('Failed to persist symbol:', e.message); }
                         }
                         // Navigate directly to the stock page
@@ -681,7 +685,7 @@ const AdvancedWatchlist = ({ onSymbolSelect }) => {
                               setAddTickerResults([]);
                               // Persist to backend if authenticated
                               if (watchlistId) {
-                                try { await api.post(`/watchlists/${watchlistId}/add`, { symbol: sym }); }
+                                try { await api.post(`/watchlist/${watchlistId}/add`, { symbol: sym }); }
                                 catch (e) { console.warn('Failed to persist symbol:', e.message); }
                               }
                             }}

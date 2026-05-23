@@ -270,6 +270,16 @@ export const forceOffline = async () => {
     }
 };
 
+export const getProviderHealth = async () => {
+    try {
+        const response = await api.get('/market/health');
+        return response.data;
+    } catch (error) {
+        console.error('Error fetching provider health:', error);
+        throw error;
+    }
+};
+
 export default {
     fetchMarketStatus,
     fetchUpdateStatus,

@@ -19,6 +19,11 @@ const UserSchema = new mongoose.Schema({
         type: String,
         required: true
     },
+    authProvider: {
+        type: String,
+        enum: ['email', 'google'],
+        default: 'email'
+    },
     preferredMode: {
         type: String,
         enum: ['TRADER', 'INVESTOR'],

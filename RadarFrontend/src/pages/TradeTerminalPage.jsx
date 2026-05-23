@@ -1,7 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import MinimalTraderChart from '../components/trader/stockResearch/MinimalTraderChart';
 import api from '../api/api';
+import { SettingsContext } from '../context/SettingsContext';
+import { isValidSymbolSync } from '../services/universeService';
+import { fetchLiveUniversePrices } from '../services/apiHelpers';
 import { ChevronLeft, BarChart2, TrendingUp, TrendingDown, Layers, Zap, Clock, ShieldAlert, Activity } from 'lucide-react';
 
 // Reusable Antigravity Card ensuring solid dark UI with no transparency
@@ -24,6 +27,8 @@ export default function TradeTerminalPage({ overrideSymbol, onBack }) {
     const { symbol: routeSymbol } = useParams();
     const symbol = overrideSymbol || routeSymbol || 'RELIANCE';
 
+    const { settings } = useContext(SettingsContext);
+
     const [isLoading, setIsLoading] = useState(true);
     const [timeframe, setTimeframe] = useState('5m');
     const [chartType, setChartType] = useState('candles');
@@ -31,6 +36,8 @@ export default function TradeTerminalPage({ overrideSymbol, onBack }) {
     const [orderCategory, setOrderCategory] = useState('MARKET');
     const [qty, setQty] = useState(1);
     const [priceInput, setPriceInput] = useState('');
+    const [stopLoss, setStopLoss] = useState('');
+    const [takeProfit, setTakeProfit] = useState('');
     const [stock, setStock] = useState({ symbol, price: 0, changePercent: 0, name: '' });
     const [quickWatchlist, setQuickWatchlist] = useState([]);
     const [marketDepth, setMarketDepth] = useState({ bids: [], asks: [] });
@@ -43,7 +50,7 @@ export default function TradeTerminalPage({ overrideSymbol, onBack }) {
 
         Promise.allSettled([
             api.get(`/market?symbols=${encodeURIComponent(symbol)}`),
-            api.get('/watchlist'),
+            api.get('/watchlist', { params: { mode: 'trader' } }),
             api.get(`/market/depth?symbol=${encodeURIComponent(symbol)}`),
         ]).then(([mktRes, wlRes, depthRes]) => {
             if (!active) return;
@@ -60,19 +67,36 @@ export default function TradeTerminalPage({ overrideSymbol, onBack }) {
             // Watchlist
             if (wlRes.status === 'fulfilled') {
                 const wlData = wlRes.value?.data?.data ?? wlRes.value?.data;
-                const syms = (Array.isArray(wlData) ? wlData.flatMap(w => (w.items ?? []).map(i => i?.symbol ?? i)) : []).slice(0, 8);
+                const syms = (Array.isArray(wlData) ? wlData.flatMap(w => (w.items ?? []).map(i => i?.symbol ?? i)) : [])
+                    .filter(s => isValidSymbolSync(s)) // Only include universe symbols
+                    .slice(0, 8);
+                
                 if (syms.length > 0) {
-                    api.get(`/market?symbols=${encodeURIComponent(syms.join(','))}`)
-                        .then(r => {
-                            const arr = r.data?.data ?? r.data ?? [];
+                    // Use batched fetch for universe validation
+                    fetchLiveUniversePrices({ suffix: '' })
+                        .then(arr => {
                             if (Array.isArray(arr) && arr.length && active) {
-                                setQuickWatchlist(arr.map(q => ({
-                                    symbol: String(q.symbol || '').replace(/\.(NS|BO)$/i, ''),
-                                    price: Number(q.price ?? q.ltp ?? 0),
-                                    change: Number(q.changePercent ?? q.pChange ?? 0),
-                                })));
+                                const symbolMap = new Map(arr.map(item => [
+                                    String(item.symbol || '').replace(/\.(NS|BO)$/i, '').toUpperCase(),
+                                    item
+                                ]));
+                                
+                                const quickList = syms.map(s => {
+                                    const upper = String(s).toUpperCase();
+                                    const found = symbolMap.get(upper);
+                                    return found ? {
+                                        symbol: upper,
+                                        price: Number(found.price ?? found.ltp ?? 0),
+                                        change: Number(found.changePercent ?? found.pChange ?? 0),
+                                    } : null;
+                                }).filter(Boolean);
+                                
+                                if (quickList.length > 0) {
+                                    setQuickWatchlist(quickList);
+                                }
                             }
-                        }).catch(() => {});
+                        })
+                        .catch(() => {});
                 }
             }
 
@@ -87,6 +111,18 @@ export default function TradeTerminalPage({ overrideSymbol, onBack }) {
 
         return () => { active = false; };
     }, [symbol]);
+
+    // Auto-calculate bracket defaults from settings when price or settings change
+    useEffect(() => {
+        if (!stock.price || !settings?.risk) return;
+        const entryPrice = Number(priceInput || stock.price);
+        const slPct = settings.risk.defaultStopLossPct || 2;
+        const tpPct = settings.risk.defaultTakeProfitPct || 5;
+        const slPrice = +(entryPrice * (1 - slPct / 100)).toFixed(2);
+        const tpPrice = +(entryPrice * (1 + tpPct / 100)).toFixed(2);
+        setStopLoss(slPrice);
+        setTakeProfit(tpPrice);
+    }, [stock.price, priceInput, settings]);
 
     const maxDepthQty = Math.max(
         ...( marketDepth.bids.length ? marketDepth.bids.map(b => b.qty) : [1]),
@@ -293,6 +329,33 @@ export default function TradeTerminalPage({ overrideSymbol, onBack }) {
                                     disabled={orderCategory === 'MARKET'}
                                     className="w-full bg-[#101828] border border-white/10 rounded-lg px-3 py-2 text-sm font-bold text-white focus:outline-none focus:border-cyan-500/50 disabled:opacity-50"
                                 />
+                            </div>
+                            
+                            {/* Bracket Orders */}
+                            <div className="pt-3 border-t border-white/5">
+                                <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-2">Bracket Orders</div>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <div>
+                                        <label className="text-[9px] font-bold text-rose-500/80 uppercase tracking-wider mb-1 block">Stop Loss</label>
+                                        <input 
+                                            type="number" 
+                                            value={stopLoss} 
+                                            onChange={e => setStopLoss(Number(e.target.value))}
+                                            className="w-full bg-[#101828] border border-rose-500/20 rounded-lg px-2 py-1.5 text-xs font-bold text-white focus:outline-none focus:border-rose-500/50"
+                                            step="0.01"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[9px] font-bold text-emerald-500/80 uppercase tracking-wider mb-1 block">Take Profit</label>
+                                        <input 
+                                            type="number" 
+                                            value={takeProfit} 
+                                            onChange={e => setTakeProfit(Number(e.target.value))}
+                                            className="w-full bg-[#101828] border border-emerald-500/20 rounded-lg px-2 py-1.5 text-xs font-bold text-white focus:outline-none focus:border-emerald-500/50"
+                                            step="0.01"
+                                        />
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
