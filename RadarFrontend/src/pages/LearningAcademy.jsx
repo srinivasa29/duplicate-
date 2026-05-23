@@ -6,14 +6,14 @@ import { fetchCourses, saveProgress, submitQuiz } from '../api/learningApi';
 // ── Helpers ─────────────────────────────────────────────────────────────────
 const ICON_MAP = { BookMarked, PlayCircle, Award, BookOpen };
 const COLOR_MAP = {
-  blue:    { bg: 'bg-blue-500/10',   text: 'text-blue-400',   border: 'border-blue-500/30',   badge: 'bg-blue-500/20 text-blue-300'   },
-  purple:  { bg: 'bg-purple-500/10', text: 'text-purple-400', border: 'border-purple-500/30', badge: 'bg-purple-500/20 text-purple-300' },
-  emerald: { bg: 'bg-emerald-500/10',text: 'text-emerald-400',border: 'border-emerald-500/30',badge: 'bg-emerald-500/20 text-emerald-300'},
+  blue:    { bg: 'bg-blue-500/10',   text: 'text-blue-400',   border: 'border-blue-500/30',   badge: 'bg-blue-500/20 text-blue-300',   bar: 'bg-blue-400' },
+  purple:  { bg: 'bg-purple-500/10', text: 'text-purple-400', border: 'border-purple-500/30', badge: 'bg-purple-500/20 text-purple-300', bar: 'bg-purple-400' },
+  emerald: { bg: 'bg-emerald-500/10',text: 'text-emerald-400',border: 'border-emerald-500/30',badge: 'bg-emerald-500/20 text-emerald-300',bar: 'bg-emerald-400'},
 };
 const LIGHT_COLOR_MAP = {
-  blue:    { bg: 'bg-blue-50',    text: 'text-blue-600',   border: 'border-blue-200',   badge: 'bg-blue-100 text-blue-700'    },
-  purple:  { bg: 'bg-purple-50',  text: 'text-purple-600', border: 'border-purple-200', badge: 'bg-purple-100 text-purple-700' },
-  emerald: { bg: 'bg-emerald-50', text: 'text-emerald-600',border: 'border-emerald-200',badge: 'bg-emerald-100 text-emerald-700'},
+  blue:    { bg: 'bg-blue-50',    text: 'text-blue-600',   border: 'border-blue-200',   badge: 'bg-blue-100 text-blue-700',    bar: 'bg-blue-600' },
+  purple:  { bg: 'bg-purple-50',  text: 'text-purple-600', border: 'border-purple-200', badge: 'bg-purple-100 text-purple-700', bar: 'bg-purple-600' },
+  emerald: { bg: 'bg-emerald-50', text: 'text-emerald-600',border: 'border-emerald-200',badge: 'bg-emerald-100 text-emerald-700', bar: 'bg-emerald-600'},
 };
 
 const parseBold = (text) => {
@@ -114,7 +114,7 @@ function CourseCard({ course, isTrader, onClick, progress }) {
       <div className="space-y-1">
         <div className={`h-1.5 w-full rounded-full ${isTrader ? 'bg-white/10' : 'bg-slate-100'}`}>
           <div
-            className={`h-1.5 rounded-full transition-all ${cm.text.replace('text-', 'bg-')}`}
+            className={`h-1.5 rounded-full transition-all ${cm.bar}`}
             style={{ width: `${pct}%` }}
           />
         </div>

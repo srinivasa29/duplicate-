@@ -7,3 +7,8 @@
   background-color: #020617;
   background: #020617;
 }
+
+.dashboard-container.investor-theme .page-container {
+  background-color: transparent !important;
+  background: transparent !important;
+}

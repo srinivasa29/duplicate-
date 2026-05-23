@@ -355,11 +355,14 @@ export default function Dashboard() {
   }, [showTraderSearchDropdown, traderSearchQuery, traderSearchResults, traderTrendingSearches, traderHighlightedIndex]);
 
   const openTraderStockPage = async (value) => {
-    const symbol = String(value || "").trim();
+    const symbol = String(value || "").trim().toUpperCase().replace(/\.(NS|BO)$/i, '');
     if (!symbol) return;
     const mode = localStorage.getItem('mode') || 'INVESTOR';
-    const path = mode === 'INVESTOR' ? '/investor-stock/' : '/stocks/';
-    navigate(`${path}${encodeURIComponent(symbol.toUpperCase())}`);
+    if (mode === 'INVESTOR') {
+      navigate(`/investor/advanced-charts?symbol=${encodeURIComponent(symbol)}`);
+    } else {
+      navigate(`/stocks/${encodeURIComponent(symbol)}`);
+    }
     await logSearchQuery(symbol);
   };
 

@@ -326,9 +326,10 @@ const InvestorStockPage = () => {
 
 
   useEffect(() => {
-    // Background is now handled via CSS for better stability
-
-    
+    // Set body background for stability when scrolling
+    document.body.style.backgroundColor = '#f8fafc';
+    document.body.style.backgroundImage = 'linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%)';
+    document.body.style.backgroundAttachment = 'fixed';
     on('price_update', (event) => {
       if (event.symbol === symbol || event.asset === symbol) {
         if (event.price) {

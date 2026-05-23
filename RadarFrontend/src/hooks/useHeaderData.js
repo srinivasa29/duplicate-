@@ -60,23 +60,19 @@ export const useHeaderData = () => {
     const [notifications, setNotifications] = useState([]);
     const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
     const [isMarkingNotifications, setIsMarkingNotifications] = useState(false);
+    const [userImage, setUserImage] = useState(() => localStorage.getItem('profileImage'));
 
     const loadProfile = useCallback(async () => {
-        const token = localStorage.getItem('token');
         const fallbackProfile = buildFallbackProfile();
-
-        if (!token) {
-            setProfile(fallbackProfile);
-            return fallbackProfile;
-        }
 
         try {
             const response = await fetchUserProfile();
             const mergedProfile = {
                 ...fallbackProfile,
-                ...response,
-                email: fallbackProfile.email
+                ...response
             };
+            if (response?.username) localStorage.setItem('username', response.username);
+            if (response?.email) localStorage.setItem('email', response.email);
 
             setProfile(mergedProfile);
             return mergedProfile;
@@ -166,11 +162,20 @@ export const useHeaderData = () => {
         loadProfile();
         loadNotifications();
 
+        const handleUpdate = () => {
+            loadProfile();
+            setUserImage(localStorage.getItem('profileImage'));
+        };
+        window.addEventListener('profile_updated', handleUpdate);
+
         const pollInterval = setInterval(() => {
             loadNotifications();
         }, 45000);
 
-        return () => clearInterval(pollInterval);
+        return () => {
+            clearInterval(pollInterval);
+            window.removeEventListener('profile_updated', handleUpdate);
+        };
     }, [loadProfile, loadNotifications]);
 
     const userInitial = useMemo(() => {
@@ -186,6 +191,7 @@ export const useHeaderData = () => {
     return {
         profile,
         userInitial,
+        userImage,
         notifications,
         unreadCount,
         isLoadingNotifications,

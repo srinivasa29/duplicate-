@@ -6,6 +6,7 @@
 .dashboard-container.investor-theme {
     background-color: #f0f7ff !important;
     background: linear-gradient(180deg, #f0f7ff 0%, #ffffff 100%) !important;
+    background-attachment: fixed !important;
     color: #1e293b;
     --bg-primary: transparent;
     --bg-card: #ffffff;

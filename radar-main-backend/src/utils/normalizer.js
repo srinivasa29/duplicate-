@@ -11,7 +11,13 @@ const normalizeCrypto = (data) => {
     }));
 };
 
-const cleanSymbolSuffix = (value) => String(value || '').replace(/\.(NS|BO)$/i, '');
+const cleanSymbolSuffix = (value) => {
+    const s = String(value || '');
+    if (s === '^NSEI') return 'NIFTY 50';
+    if (s === '^BSESN') return 'SENSEX';
+    if (s === '^NSEBANK') return 'BANKNIFTY';
+    return s.replace(/\.(NS|BO)$/i, '');
+};
 
 const normalizeStock = (data) => {
     return data.map(stock => ({

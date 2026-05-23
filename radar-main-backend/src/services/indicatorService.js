@@ -41,14 +41,19 @@ const getTechnicalIndicators = async (assetType, symbol, interval = '1D', option
         signal: validMacd[validMacd.length - 1].signal
     } : null;
 
-    const prices = history.map(h => h.price);
-    const emaRaw = calculateEMA(prices, 20);
+    //const prices = history.map(h => h.price);
+    const closes = history.map(h => h.close);
+
+    const highs = history.map(h => h.high);
+    const lows = history.map(h => h.low);
+    const volumes = history.map(h => h.volume);
+    const emaRaw = calculateEMA(closes, 20);
     const ema20 = emaRaw.length > 0 ? parseFloat(emaRaw[emaRaw.length - 1].toFixed(2)) : null;
 
     let support = null;
     let resistance = null;
-    if (prices.length >= 20) {
-        const recent20 = prices.slice(-20);
+    if (closes.length >= 20) {
+        const recent20 = closes.slice(-20);
         support = parseFloat(Math.min(...recent20).toFixed(2));
         resistance = parseFloat(Math.max(...recent20).toFixed(2));
     }
@@ -56,20 +61,20 @@ const getTechnicalIndicators = async (assetType, symbol, interval = '1D', option
     const volumeStatus = getVolumeStatus(history, 20);
     const last = history[history.length - 1] || null;
     const previous = history[history.length - 2] || null;
-    const lastPrice = Number(last?.price);
-    const previousPrice = Number(previous?.price);
+    const lastPrice = Number(last?.close);
+    const previousPrice = Number(previous?.close);
     const lastChangePercent = Number.isFinite(lastPrice) && Number.isFinite(previousPrice) && previousPrice > 0
         ? Number((((lastPrice - previousPrice) / previousPrice) * 100).toFixed(2))
         : null;
-    const lastUpdatedAt = last?.date || null;
+    const lastUpdatedAt = last?.datetime || null;
 
     let atr = null;
-    if (prices.length >= 14) {
+    if (closes.length >= 14) {
         let trSum = 0;
         let count = 0;
-        for (let i = prices.length - 14; i < prices.length; i++) {
+        for (let i = closes.length - 14; i < closes.length; i++) {
             if (i > 0) {
-                trSum += Math.abs(prices[i] - prices[i - 1]);
+                trSum += Math.abs(highs[i] - lows[i]);
                 count++;
             }
         }

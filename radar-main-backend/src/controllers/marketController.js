@@ -50,14 +50,63 @@ const getMarketData = async (req, res) => {
 
         if (symbols) {
             const symList = symbols.split(',').map(s => s.trim().toUpperCase());
-            result = result.filter(item => symList.includes(item.symbol.toUpperCase()));
+            result = result.filter(item => {
+                const sym = String(item.symbol || '').toUpperCase();
+                return symList.includes(sym) || symList.includes(stripStockSuffix(sym));
+            });
+
+            // Fetch any missing stocks dynamically
+            const foundSymbols = new Set(result.flatMap(item => {
+                const sym = String(item.symbol || '').toUpperCase();
+                return [sym, stripStockSuffix(sym)];
+            }));
+            const missingStocks = symList.filter(s => !foundSymbols.has(s) && !s.includes('-')); // Avoid forex/crypto pairs
+            
+            if (missingStocks.length > 0) {
+                try {
+                    // Attempt to resolve suffixes for missing stocks
+                    const resolvedMissingPromises = missingStocks.map(async s => {
+                        const searchRes = await searchSymbolRegistry({ q: s, limit: 1 });
+                        if (searchRes && searchRes.length > 0) {
+                            return searchRes[0].symbol; 
+                        }
+                        // Default to appending .NS if it looks like an Indian stock request with no suffix
+                        return s.includes('.') ? s : `${s}.NS`;
+                    });
+
+                    const resolvedMissing = await Promise.all(resolvedMissingPromises);
+                    const missingData = await fetchStockData(resolvedMissing);
+                    
+                    if (missingData && missingData.length > 0) {
+                        const cleanMissing = normalizeStock(missingData);
+                        
+                        // Only add to result if they were found
+                        const actuallyFound = cleanMissing.filter(m => {
+                            const sym = String(m.symbol || '').toUpperCase();
+                            return symList.includes(sym) || 
+                                   symList.includes(stripStockSuffix(sym)) ||
+                                   resolvedMissing.includes(sym);
+                        });
+                        
+                        result = [...result, ...actuallyFound];
+                        
+                        // Update the cache so subsequent requests for these custom stocks are fast
+                        if (combinedData) {
+                            const newCombined = [...combinedData, ...cleanMissing].filter((v, i, a) => a.findIndex(t => t.symbol === v.symbol) === i);
+                            cache.set("allMarketData", newCombined);
+                        }
+                    }
+                } catch (err) {
+                    console.error("[marketController] Failed to fetch missing stocks:", err.message);
+                }
+            }
         }
 
         if (search) {
             const term = search.toLowerCase().replace('$', '').replace('#', '');
             result = result.filter(item => 
-                item.name.toLowerCase().includes(term) || 
-                item.symbol.toLowerCase().includes(term)
+                String(item.name || '').toLowerCase().includes(term) || 
+                String(item.symbol || '').toLowerCase().includes(term)
             );
         }
 

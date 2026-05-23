@@ -34,27 +34,31 @@ class YahooFinanceService {
 
             const result = response.data.chart.result[0];
             
-            if (!result || result.indicators.quote.length === 0) {
+            if (!result || !result.indicators || !result.indicators.quote || result.indicators.quote.length === 0) {
                 throw new Error('No data available for this symbol');
             }
 
-            const timestamps = result.timestamp;
-            const quote = result.indicators.quote[0];
+            const timestamps = Array.isArray(result.timestamp) ? result.timestamp : [];
+            const quote = result.indicators.quote[0] || { open: [], high: [], low: [], close: [], volume: [] };
             const adjClose = result.indicators.adjclose?.[0]?.adjclose || [];
+
+            if (timestamps.length === 0) {
+                throw new Error('No timestamp data available for this symbol');
+            }
 
             const ohlcData = timestamps.map((timestamp, index) => ({
                 timestamp: new Date(timestamp * 1000), // Convert Unix timestamp to Date
-                open: quote.open[index],
-                high: quote.high[index],
-                low: quote.low[index],
-                close: quote.close[index],
-                volume: quote.volume[index] || 0,
-                adjustedClose: adjClose[index] || quote.close[index],
+                open: quote.open?.[index],
+                high: quote.high?.[index],
+                low: quote.low?.[index],
+                close: quote.close?.[index],
+                volume: quote.volume?.[index] || 0,
+                adjustedClose: adjClose[index] || quote.close?.[index],
             })).filter(candle => 
-                candle.open !== null && 
-                candle.high !== null && 
-                candle.low !== null && 
-                candle.close !== null
+                candle.open !== null && candle.open !== undefined &&
+                candle.high !== null && candle.high !== undefined &&
+                candle.low !== null && candle.low !== undefined &&
+                candle.close !== null && candle.close !== undefined
             );
 
             logger.info(`âœ… Fetched ${ohlcData.length} candles for ${symbol}`);
@@ -113,27 +117,31 @@ class YahooFinanceService {
 
             const result = response.data.chart.result[0];
             
-            if (!result || !result.indicators?.quote?.[0]) {
+            if (!result || !result.indicators || !result.indicators?.quote?.[0]) {
                 throw new Error('No data available');
             }
 
-            const timestamps = result.timestamp;
-            const quote = result.indicators.quote[0];
+            const timestamps = Array.isArray(result.timestamp) ? result.timestamp : [];
+            const quote = result.indicators.quote[0] || { open: [], high: [], low: [], close: [], volume: [] };
             const adjClose = result.indicators.adjclose?.[0]?.adjclose || [];
+
+            if (timestamps.length === 0) {
+                throw new Error('No timestamp data available for custom range');
+            }
 
             const ohlcData = timestamps.map((timestamp, index) => ({
                 timestamp: new Date(timestamp * 1000),
-                open: quote.open[index],
-                high: quote.high[index],
-                low: quote.low[index],
-                close: quote.close[index],
-                volume: quote.volume[index] || 0,
-                adjustedClose: adjClose[index] || quote.close[index],
+                open: quote.open?.[index],
+                high: quote.high?.[index],
+                low: quote.low?.[index],
+                close: quote.close?.[index],
+                volume: quote.volume?.[index] || 0,
+                adjustedClose: adjClose[index] || quote.close?.[index],
             })).filter(candle => 
-                candle.open !== null && 
-                candle.high !== null && 
-                candle.low !== null && 
-                candle.close !== null
+                candle.open !== null && candle.open !== undefined &&
+                candle.high !== null && candle.high !== undefined &&
+                candle.low !== null && candle.low !== undefined &&
+                candle.close !== null && candle.close !== undefined
             );
 
             logger.info(`âœ… Fetched ${ohlcData.length} candles for ${symbol}`);

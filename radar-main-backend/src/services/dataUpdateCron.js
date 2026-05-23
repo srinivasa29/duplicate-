@@ -61,7 +61,9 @@ class DataUpdateCron {
       });
 
       if (!marketHoursService.isPostMarket()) {
-        logger.info('Cron: Active market hours - skipping heavy backfill to conserve API calls');
+        logger.info('Cron: Active market hours - skipping heavy backfill, but running recent changes engine');
+        const { evaluateRecentChanges } = require('./recentChangesEngine');
+        await evaluateRecentChanges([], true).catch(err => logger.error('Cron: recent changes error:', err));
         return;
       }
 
@@ -82,6 +84,8 @@ class DataUpdateCron {
         // Invalidate sector cache so next request reflects fresh backfilled data
         invalidateSectorCache();
         logger.info('Cron: Sector performance cache invalidated');
+        const { evaluateRecentChanges } = require('./recentChangesEngine');
+        await evaluateRecentChanges([], true).catch(err => logger.error('Cron: recent changes error:', err));
       } else if (result.skipped) {
         logger.info('Cron: Update skipped', { reason: result.message });
       } else {

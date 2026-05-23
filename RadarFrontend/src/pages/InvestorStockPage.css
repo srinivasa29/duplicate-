@@ -1004,8 +1004,9 @@
 .po-floating-price {
   position: absolute;
   bottom: 18px;
-  background: #0f172a;
-  color: #f8fafc;
+  background: #ffffff;
+  color: #1e293b;
+  border: 1px solid #e2e8f0;
   padding: 4px 10px;
   border-radius: 6px;
   font-size: 10px;
@@ -1017,7 +1018,7 @@
 .po-marker-v-line {
   width: 2px;
   height: 20px;
-  background: #0f172a;
+  background: #e2e8f0;
   margin-top: 10px;
 }
 
@@ -1186,8 +1187,9 @@
   bottom: 100%;
   left: 50%;
   transform: translateX(-50%) translateY(-8px);
-  background: #0f172a;
-  color: #f8fafc;
+  background: #ffffff;
+  color: #1e293b;
+  border: 1px solid #e2e8f0;
   padding: 8px 12px;
   border-radius: 8px;
   font-size: 11px;
@@ -1660,9 +1662,9 @@
 }
 
 .st-pill.active {
-  background: #0f172a;
-  color: #f8fafc;
-  border-color: #1e293b;
+  background: #f1f5f9;
+  color: #3b82f6;
+  border-color: #3b82f6;
 }
 
 /* Signals Grid */
@@ -1807,8 +1809,9 @@
   left: 50%;
   transform: translateX(-50%);
   width: 240px;
-  background: #0f172a;
-  color: #f8fafc;
+  background: #ffffff;
+  color: #1e293b;
+  border: 1px solid #e2e8f0;
   padding: 12px;
   border-radius: 8px;
   font-size: 11px;
@@ -1924,7 +1927,7 @@
 .ft-val-bold {
   font-size: 16px;
   font-weight: 700;
-  color: #0f172a;
+  color: #1e293b;
 }
 
 .ft-status-pill {
@@ -1958,29 +1961,28 @@
 .ft-dropdown-s {
   position: absolute;
   top: 100%;
-  left: 50%;
-  right: auto;
+  right: 0;
+  left: auto;
   width: 260px;
-
-  background: #0f172a;
-  color: #f8fafc;
-  padding: 12px;
+  background: white;
   border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  padding: 12px;
   font-size: 11px;
-  line-height: 1.6;
-  z-index: 9999;
-
+  line-height: 1.5;
+  color: #64748b;
+  z-index: 100;
   opacity: 0;
   visibility: hidden;
-  box-shadow: 0 10px 25px rgba(0,0,0,0.2);
-  transform: translateX(-50%) translateY(10px);
+  box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+  transform: translateY(10px);
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .info-trigger-s:hover .ft-dropdown-s {
   opacity: 1;
   visibility: visible;
-  transform: translateX(-50%) translateY(8px);
+  transform: translateY(8px);
 }
 
 /* Detailed Layout Refinements */
@@ -2074,7 +2076,7 @@
 .fac-v {
   font-size: 14px;
   font-weight: 700;
-  color: #0f172a;
+  color: #1e293b;
 }
 
 .fac-label {
@@ -2136,7 +2138,7 @@
 .pct-val {
   font-size: 13px;
   font-weight: 700;
-  color: #0f172a;
+  color: #1e293b;
 }
 
 .pct-indicator {
@@ -2170,7 +2172,7 @@
   border: 1px solid #e2e8f0;
 }
 
-.ss-score-num { font-size: 24px; font-weight: 800; color: #0f172a; }
+.ss-score-num { font-size: 24px; font-weight: 800; color: #1e293b; }
 .ss-score-max { font-size: 13px; color: #94a3b8; font-weight: 600; }
 
 .kl-visual-range {
@@ -2468,7 +2470,7 @@
 .ne-title-group h2 {
   font-size: 20px;
   font-weight: 800;
-  color: #0f172a;
+  color: #1e293b;
   margin: 0;
 }
 
@@ -2731,7 +2733,7 @@
 .ne-n-headline {
   font-size: 16px;
   font-weight: 800;
-  color: #0f172a;
+  color: #1e293b;
   margin: 0 0 8px 0;
   line-height: 1.4;
 }
@@ -2814,10 +2816,10 @@
 }
 
 .st-toggle-btn.active {
-  background: #0f172a;
-  border-color: #0f172a;
-  color: #f8fafc;
-  box-shadow: 0 8px 15px rgba(15, 23, 42, 0.15);
+  background: #f1f5f9;
+  border-color: #3b82f6;
+  color: #3b82f6;
+  box-shadow: 0 4px 10px rgba(59, 130, 246, 0.15);
 }
 
 .st-btn-label {
@@ -2906,7 +2908,7 @@
 .oss-score-num {
   font-size: 24px;
   font-weight: 900;
-  color: #0f172a;
+  color: #1e293b;
 }
 
 .oss-score-den {
@@ -2987,3 +2989,55 @@
 }
 
 /* Style Sync Complete */
+/* Financial Performance Enhanced Styles */
+.fin-period-toggles {
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);
+}
+
+.fs-item {
+  transition: all 0.2s ease;
+}
+
+.fs-item:hover {
+  opacity: 0.8;
+}
+
+.radar-quad-grid .radar-card {
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s ease;
+}
+
+.radar-quad-grid .radar-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 24px -8px rgba(0,0,0,0.08);
+}
+
+.news-impact-item {
+  border-left: 2px solid #3b82f6;
+  padding-left: 12px;
+  margin-bottom: 16px;
+}
+
+.ni-tag {
+  letter-spacing: 0.5px;
+  display: inline-block;
+  margin-bottom: 4px;
+}
+
+.recharts-cartesian-grid-horizontal line {
+  stroke-dasharray: 4 4;
+}
+
+.recharts-bar-rectangle {
+  transition: all 0.3s ease;
+}
+
+.recharts-bar-rectangle:hover {
+  filter: brightness(1.1);
+}
+
+@media (max-width: 768px) {
+  .fin-summary-display {
+    flex-direction: column;
+    gap: 16px;
+  }
+}

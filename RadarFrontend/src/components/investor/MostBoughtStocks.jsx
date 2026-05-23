@@ -142,9 +142,9 @@ const MostBoughtStocks = () => {
     }, [pulse]);
 
     const openStockPage = (name) => {
-        const symbol = String(name || '').trim();
+        const symbol = String(name || '').trim().toUpperCase().replace(/\.(NS|BO)$/i, '');
         if (!symbol) return;
-        navigate(`/investor-stock/${encodeURIComponent(symbol.toUpperCase())}`);
+        navigate(`/investor/advanced-charts?symbol=${encodeURIComponent(symbol)}`);
     };
 
     return (

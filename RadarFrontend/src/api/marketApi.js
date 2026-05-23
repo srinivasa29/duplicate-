@@ -144,6 +144,16 @@ export const fetchMarketNews = async (params = {}) => {
     }
 };
 
+export const fetchNewsInsight = async (title, summary) => {
+    try {
+        const response = await api.post('/market/news/insight', { title, summary });
+        return response.data;
+    } catch (error) {
+        console.error("Failed to fetch news insight:", error.message);
+        throw error;
+    }
+};
+
 export const fetchTrendingSearches = async () => {
     try {
         const response = await api.get('/market/search/trending');

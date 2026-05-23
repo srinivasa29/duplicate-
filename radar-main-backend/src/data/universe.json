@@ -1,0 +1,104 @@
+[
+  {
+    "symbol": "RELIANCE.NS",
+    "name": "Reliance Industries",
+    "sector": "Energy",
+    "type": "STOCK"
+  },
+  {
+    "symbol": "TCS.NS",
+    "name": "Tata Consultancy Services",
+    "sector": "IT",
+    "type": "STOCK"
+  },
+  {
+    "symbol": "INFY.NS",
+    "name": "Infosys",
+    "sector": "IT",
+    "type": "STOCK"
+  },
+  {
+    "symbol": "HDFCBANK.NS",
+    "name": "HDFC Bank",
+    "sector": "Banking",
+    "type": "STOCK"
+  },
+  {
+    "symbol": "ICICIBANK.NS",
+    "name": "ICICI Bank",
+    "sector": "Banking",
+    "type": "STOCK"
+  },
+  {
+    "symbol": "SBIN.NS",
+    "name": "State Bank of India",
+    "sector": "Banking",
+    "type": "STOCK"
+  },
+  {
+    "symbol": "LT.NS",
+    "name": "Larsen & Toubro",
+    "sector": "Infrastructure",
+    "type": "STOCK"
+  },
+  {
+    "symbol": "ITC.NS",
+    "name": "ITC",
+    "sector": "FMCG",
+    "type": "STOCK"
+  },
+  {
+    "symbol": "BHARTIARTL.NS",
+    "name": "Bharti Airtel",
+    "sector": "Telecom",
+    "type": "STOCK"
+  },
+  {
+    "symbol": "^NSEI",
+    "name": "NIFTY 50",
+    "sector": "Index",
+    "type": "INDEX"
+  },
+  {
+    "symbol": "^NSEBANK",
+    "name": "BANKNIFTY",
+    "sector": "Index",
+    "type": "INDEX"
+  },
+  {
+    "symbol": "^BSESN",
+    "name": "SENSEX",
+    "sector": "Index",
+    "type": "INDEX"
+  },
+  {
+    "symbol": "BTC-USD",
+    "name": "Bitcoin",
+    "sector": "Crypto",
+    "type": "CRYPTO"
+  },
+  {
+    "symbol": "ETH-USD",
+    "name": "Ethereum",
+    "sector": "Crypto",
+    "type": "CRYPTO"
+  },
+  {
+    "symbol": "SOL-USD",
+    "name": "Solana",
+    "sector": "Crypto",
+    "type": "CRYPTO"
+  },
+  {
+    "symbol": "INR=X",
+    "name": "USDINR",
+    "sector": "Forex",
+    "type": "FOREX"
+  },
+  {
+    "symbol": "EURINR=X",
+    "name": "EURINR",
+    "sector": "Forex",
+    "type": "FOREX"
+  }
+]

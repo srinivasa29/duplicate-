@@ -35,9 +35,11 @@ const AdminDashboard = lazy(() => import('./components/AdminDashboard'));
 const RealtimeDemoPage = lazy(() => import('./pages/RealtimeDemoPage'));
 const SpecShowcasePage = lazy(() => import('./pages/SpecShowcase'));
 const Onboarding = lazy(() => import('./pages/Onboarding'));
-const InvestorStockPage = lazy(() => import('./pages/InvestorStockPage'));
+
 const MarketResearchDashboard = lazy(() => import('./pages/MarketResearchDashboard'));
 const ScreenerPage = lazy(() => import('./pages/ScreenerPage'));
+
+// InvestorStockPage has been removed — stocks now open in Advanced Charts
 
 const AppLoader = () => (
   <div className="min-h-screen flex items-center justify-center bg-[#020617] text-[#E2E8F0]">
@@ -77,6 +79,13 @@ const AssetAliasRoute = () => {
   const { symbol } = useParams();
   const nextSymbol = encodeURIComponent(String(symbol || '').trim());
   return <Navigate to={`/stocks/${nextSymbol}`} replace />;
+};
+
+// Investor stock pages → redirect to Advanced Charts with symbol
+const InvestorStockRedirect = () => {
+  const { symbol } = useParams();
+  const clean = encodeURIComponent(String(symbol || 'RELIANCE').trim().toUpperCase().replace(/\.(NS|BO)$/i, ''));
+  return <Navigate to={`/investor/advanced-charts?symbol=${clean}`} replace />;
 };
 
 const OAuthCallbackRoute = () => {
@@ -170,7 +179,7 @@ function App() {
             <Route path="/stocks/:symbol" element={<TraderStockPage />} />
             <Route path="/trade/:symbol" element={<TradeTerminalPage />} />
             <Route path="/chart/:symbol" element={<MinimalChartPage />} />
-            <Route path="/investor-stock/:symbol" element={<InvestorStockPage />} />
+            <Route path="/investor-stock/:symbol" element={<InvestorStockRedirect />} />
             <Route path="/asset/:symbol" element={<AssetAliasRoute />} />
 
             {/* Persona Dashboards */}
